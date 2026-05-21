@@ -1,4 +1,4 @@
-﻿namespace UrbanRoadworks.Models
+﻿namespace UrbanRoadworks.Models.DTOs
 {
     public class RoadworkAssetDto
     {

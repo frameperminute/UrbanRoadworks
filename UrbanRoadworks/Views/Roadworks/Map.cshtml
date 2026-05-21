@@ -722,7 +722,7 @@
 						const wkt = `POINT(${coord[0]} ${coord[1]})`;
 
 						// Update DB
-						await fetch(`/api/map/assets/${id}`, {
+						await fetch(`/api/asset/assets/${id}`, {
 							method: 'PUT',
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({
@@ -772,7 +772,7 @@
 				siteId:    parseInt(document.getElementById('asset-site-id').value) || null,
 				geometry:  document.getElementById('asset-geometry').value || null
 			};
-			const url    = id ? `/api/map/assets/${id}` : '/api/map/assets';
+			const url    = id ? `/api/asset/assets/${id}` : '/api/asset/assets';
 			const method = id ? 'PUT' : 'POST';
 			await fetch(url, {
 				method,
@@ -788,7 +788,7 @@
 		async function deleteAsset() {
 			const id = document.getElementById('asset-id').value;
 			if (!id || !confirm('Remove this asset?')) return;
-			await fetch(`/api/map/assets/${id}`, { method: 'DELETE' });
+			await fetch(`/api/asset/assets/${id}`, { method: 'DELETE' });
 			document.getElementById('asset-panel').style.display = 'none';
 			document.getElementById('overlay').style.display = 'none';
 			resetButtons();
@@ -825,9 +825,9 @@
 		async function loadAllData() {
 			try {
 				const [sitesRes, affectedRes, assetsRes] = await Promise.all([
-					fetch('/api/map/sites'),
+					fetch('/api/site/sites'),
 					fetch('/api/map/affected-network-roads'),
-					fetch('/api/map/assets')
+					fetch('/api/asset/assets')
 				]);
 				allSites         = await sitesRes.json();
 				allAffectedRoads = await affectedRes.json(); 
@@ -928,7 +928,7 @@
 				endDate:   document.getElementById('edit-end').value || null,
 				geometry:  geometry || null  
 			};
-			const url    = id ? `/api/map/sites/${id}` : '/api/map/sites';
+			const url    = id ? `/api/site/sites/${id}` : '/api/site/sites';
 			const method = id ? 'PUT' : 'POST';
 			const res = await fetch(url, {
 				method,
@@ -953,7 +953,7 @@
 		async function deleteSite() {
 			const id = document.getElementById('edit-id').value;
 			if (!id || !confirm('Delete this site?')) return;
-			await fetch(`/api/map/sites/${id}`, { method: 'DELETE' });
+			await fetch(`/api/site/sites/${id}`, { method: 'DELETE' });
 			document.getElementById('edit-panel').style.display = 'none';
 			document.getElementById('overlay').style.display = 'none';
 			resetButtons();
@@ -1064,7 +1064,7 @@
 			document.getElementById('btn-route').textContent = '⏳ Computing...';
 			try {
 				const res = await fetch(
-					`/api/map/route?fromLon=${routeFrom[0]}&fromLat=${routeFrom[1]}&toLon=${routeTo[0]}&toLat=${routeTo[1]}`
+					`/api/route/route?fromLon=${routeFrom[0]}&fromLat=${routeFrom[1]}&toLon=${routeTo[0]}&toLat=${routeTo[1]}`
 				);
 				const segments = await res.json();
 				if (!segments.length) {
@@ -1151,7 +1151,7 @@
 			document.querySelector('[onclick="calculateInspectorTour()"]').textContent = '⏳ Computing...';
 
 			try {
-				const res = await fetch('/api/map/inspector-route', {
+				const res = await fetch('/api/route/inspector-route', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(allIds)
