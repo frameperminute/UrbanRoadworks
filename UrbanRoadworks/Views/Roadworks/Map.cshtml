@@ -292,13 +292,26 @@
 				</label>
 			</div>
 		</div>
+		<div class="divider"></div>
 
+		<div>
+			<div class="section-title">Canals</div>
+			<div class="filter-group">
+				<label>
+					<input type="checkbox" checked onchange="applyFilters()"
+						   id="filter-canals-visible" />
+					<span class="line-sample" style="background:#0066cc;"></span>
+					Cable canals
+				</label>
+			</div>
+		</div>
 		<div class="divider"></div>
 
 		<div id="counter">
 			<div>Sites: <span id="cnt-sites">–</span></div>
 			<div>Roads inside sites: <span id="cnt-roads">–</span></div>
 			<div>Assets: <span id="cnt-assets">–</span></div>
+			<div>Canals: <span id="cnt-canals">–</span></div>
 		</div>
 
 		<div class="divider"></div>
@@ -331,6 +344,10 @@
 					<span class="line-sample" style="background:#5591c7;"></span>
 					Alternative routes
 				</div>
+				<div class="legend-item">
+					<span class="line-sample" style="background:#0066cc;"></span>
+					Cable canals
+				</div>
 			</div>
 		</div>
 		<div class="divider"></div>
@@ -353,6 +370,12 @@
 						style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
                padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
 					↕️ Move asset
+				</button>
+				<button onclick="startDrawCanal()" style="background:#0d3d6b;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					+ New canal
+				</button>
+				<button onclick="toggleCanalEditMode()" id="btn-edit-canal" style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					✏️ Edit canal
 				</button>
 			</div>
 		</div>
@@ -424,16 +447,26 @@
 		let allSites  = [];
 		let allAssets = [];
 		let allAffectedRoads = [];
+		let allCanals = [];
 		let drawSite = null;
-		let assetEditMode = false;
 		let drawAsset = null;
-		let moveAssetMode = false;
+		let drawCanal = null;
 		let translateInteraction = null;
 
 		const sitesSource  = new ol.source.Vector();
 		const assetsSource = new ol.source.Vector();
 		const affectedRoadsSource = new ol.source.Vector();
 		const networkSource = new ol.source.Vector();
+		const canalsSource = new ol.source.Vector();
+
+		const canalsLayer  = new ol.layer.Vector({
+			source: canalsSource,
+			style: new ol.style.Style({
+				stroke: new ol.style.Stroke({ color: '#1a80e5', width: 4 })
+			}),
+			zIndex: 2
+		});
+
 		const networkLayer = new ol.layer.Vector({
 			source: networkSource,
 			style: new ol.style.Style({
@@ -508,6 +541,7 @@
 			layers: [
 				new ol.layer.Tile({ source: new ol.source.OSM() }),
 				networkLayer,
+				canalsLayer,
 				sitesLayer,
 				assetsLayer,
 				affectedRoadsLayer
@@ -551,13 +585,17 @@
 			if (feature) {
 				const props = feature.getProperties();
 				let html = '';
-				if (editMode && props.id && props.status) {
-					openEditPanel(props);
-					return;
+				if (modes.editSite.active  && props.id && props.status && !props.assetType) {
+					openEditPanel(props);      
+					return; 
 				}
-				if (assetEditMode && props.id && props.assetType) {
-					openAssetEditPanel(props);
-					return;
+				if (modes.editAsset.active && props.id && props.assetType) { 
+					openAssetEditPanel(props);  
+					return; 
+				}
+				if (modes.editCanal.active && props.id && props.status && !props.assetType && !props.siteStatus) { 
+					openCanalEditPanel(props);  
+					return; 
 				}
 				if (props.name) {
 					const badgeClass = 'badge-' + (props.status || 'planned');
@@ -589,15 +627,14 @@
 		});
 
 		map.on('pointermove', function(evt) {
-			if (pickMode || editMode || assetEditMode) return;
+			const anyActive = Object.values(modes).some(m => m.active);
+			if (pickMode || anyActive) return;
 			const hit = map.hasFeatureAtPixel(evt.pixel);
-			map.getTargetElement().style.cursor = hit ? 'pointer' : '';
+			map.getTargetElement().style.cursor = map.hasFeatureAtPixel(evt.pixel) ? 'pointer' : '';
 		});
 
 		function startDrawSite() {
-			if (editMode) toggleEditMode();
-			// Remove any previous drawing
-			if (drawSite) map.removeInteraction(drawSite);
+			resetButtons();
 
 			const btn = document.getElementById('btn-add');
 			btn.textContent = '🖊 Draw the perimeter...';
@@ -640,8 +677,9 @@
 		}
 
 		function startDrawAsset() {
-			if (assetEditMode) toggleAssetEditMode();
-			if (drawAsset) map.removeInteraction(drawAsset);
+			
+			resetButtons();
+			
 			map.getTargetElement().style.cursor = 'crosshair';
 
 			const btn = document.querySelector('[onclick="startDrawAsset()"]');
@@ -680,79 +718,6 @@
 			map.addInteraction(drawAsset);
 		}
 
-		function toggleAssetEditMode() {
-			if (!assetEditMode) {
-				if (editMode) toggleEditMode();
-				if (moveAssetMode) toggleMoveAssetMode();
-			}
-			assetEditMode = !assetEditMode;
-			const btn = document.getElementById('btn-edit-asset');
-			btn.style.background = assetEditMode ? '#e8af34' : '#2a3a5e';
-			btn.style.color = assetEditMode ? '#1a1a2e' : '#eee';
-			btn.textContent = assetEditMode ? '✏️ Asset ON — click on a point' : '✏️ Edit asset';
-			map.getTargetElement().style.cursor = assetEditMode ? 'crosshair' : '';
-		}
-
-		function toggleMoveAssetMode() {
-			if (!moveAssetMode) {
-				if (editMode) toggleEditMode();
-				if (assetEditMode) toggleAssetEditMode();
-			}
-			moveAssetMode = !moveAssetMode;
-			const btn = document.getElementById('btn-move-asset');
-
-			if (moveAssetMode) {
-
-				map.getTargetElement().style.cursor = 'crosshair';
-
-				// Create Translate interaction only for the asset
-				translateInteraction = new ol.interaction.Translate({
-					layers: [assetsLayer]
-				});
-
-				translateInteraction.on('translateend', async function(evt) {
-					for (const feature of evt.features.getArray()) {
-						const id = feature.get('id');
-						if (!id) continue;
-
-						// Converts new position in WKT 4326
-						const coord = ol.proj.toLonLat(
-							feature.getGeometry().getCoordinates()
-						);
-						const wkt = `POINT(${coord[0]} ${coord[1]})`;
-
-						// Update DB
-						await fetch(`/api/asset/assets/${id}`, {
-							method: 'PUT',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({
-								assetType: feature.get('assetType'),
-								siteId:    feature.get('siteId') ?? null,
-								geometry:  wkt
-							})
-						});
-						console.log(`[MOVE] Asset ${id} moved in ${wkt}`);
-					}
-					await loadAllData();
-				});
-
-				map.addInteraction(translateInteraction);
-				btn.style.background = '#4f98a3';
-				btn.style.color = '#fff';
-				btn.textContent = '↕️ Move ON — drag an asset';
-				map.getTargetElement().style.cursor = 'grab';
-
-			} else {
-				if (translateInteraction) {
-					map.removeInteraction(translateInteraction);
-					translateInteraction = null;
-				}
-				map.getTargetElement().style.cursor = '';
-				btn.style.background = '#2a3a5e';
-				btn.style.color = '#eee';
-				btn.textContent = '↕️ Move asset';
-			}
-		}
 
 		function openAssetEditPanel(props) {
 			document.getElementById('asset-panel-title').textContent = 'Edit asset';
@@ -822,18 +787,116 @@
 			}).filter(f => f !== null);
 		}
 
+		// ── CANALS ──────────────────────────────────────────────────────────
+
+		// Disegna nuova linestring canale
+		function startDrawCanal() {
+			
+			resetButtons();
+
+			const btn = document.querySelector('[onclick="startDrawCanal()"]');
+			btn.textContent = '🖊 Draw the canal...';
+			btn.style.background = '#0066cc';
+
+			const drawSource = new ol.source.Vector();
+			drawCanal = new ol.interaction.Draw({ source: drawSource, type: 'LineString' });
+
+			drawCanal.on('drawend', function(evt) {
+				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
+					dataProjection: 'EPSG:4326',
+					featureProjection: 'EPSG:3857'
+				});
+				document.getElementById('canal-geometry').value = wkt;
+				document.getElementById('canal-id').value = '';
+				document.getElementById('canal-name').value = '';
+				document.getElementById('canal-status').value = 'planned';
+				document.getElementById('canal-from-site').value = '';
+				document.getElementById('canal-to-site').value = '';
+				document.getElementById('canal-btn-delete').style.display = 'none';
+				document.getElementById('canal-panel-title').textContent = 'New canal';
+
+				populateCanalSiteDropdowns();
+				document.getElementById('canal-panel').style.display = 'block';
+				document.getElementById('overlay').style.display = 'block';
+
+				map.removeInteraction(drawCanal);
+				drawCanal = null;
+				btn.textContent = '+ New canal';
+				btn.style.background = '#0d3d6b';
+			});
+
+			map.addInteraction(drawCanal);
+		}
+
+		function populateCanalSiteDropdowns(fromId = null, toId = null) {
+			['canal-from-site', 'canal-to-site'].forEach((selId, idx) => {
+				const sel = document.getElementById(selId);
+				sel.innerHTML = '<option value="">— none —</option>';
+				allSites.filter(s => s.status === 'active' || s.status === 'planned').forEach(s => {
+					const opt = document.createElement('option');
+					opt.value = s.id;
+					opt.textContent = `#${s.id} — ${s.name || 'No name'}`;
+					if ((idx === 0 && fromId && s.id === parseInt(fromId)) ||
+						(idx === 1 && toId   && s.id === parseInt(toId))) opt.selected = true;
+					sel.appendChild(opt);
+				});
+			});
+		}
+
+		async function saveCanal() {
+			const id = document.getElementById('canal-id').value;
+			const body = {
+				name:       document.getElementById('canal-name').value,
+				status:     document.getElementById('canal-status').value,
+				fromSite: parseInt(document.getElementById('canal-from-site').value) || null,
+				toSite:   parseInt(document.getElementById('canal-to-site').value)   || null,
+				geometry:   document.getElementById('canal-geometry').value || null
+			};
+			const url    = id ? `/api/canal/canals/${id}` : '/api/canal/canals';
+			const method = id ? 'PUT' : 'POST';
+			await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+			document.getElementById('canal-panel').style.display = 'none';
+			document.getElementById('overlay').style.display = 'none';
+			resetButtons();
+			map.getTargetElement().style.cursor = '';
+			await loadAllData();
+		}
+
+		async function deleteCanal() {
+			const id = document.getElementById('canal-id').value;
+			if (!id || !confirm('Delete this canal?')) return;
+			await fetch(`/api/canal/canals/${id}`, { method: 'DELETE' });
+			document.getElementById('canal-panel').style.display = 'none';
+			document.getElementById('overlay').style.display = 'none';
+			resetButtons();
+			await loadAllData();
+		}
+
+		function openCanalEditPanel(props) {
+			document.getElementById('canal-panel-title').textContent = 'Edit canal';
+			document.getElementById('canal-id').value    = props.id || '';
+			document.getElementById('canal-name').value  = props.name || '';
+			document.getElementById('canal-status').value = props.status || 'planned';
+			document.getElementById('canal-geometry').value = '';
+			document.getElementById('canal-btn-delete').style.display = 'block';
+			populateCanalSiteDropdowns(props.fromSite, props.toSite);
+			document.getElementById('canal-panel').style.display = 'block';
+			document.getElementById('overlay').style.display = 'block';
+		}
+
 		async function loadAllData() {
 			try {
-				const [sitesRes, affectedRes, assetsRes] = await Promise.all([
+				const [sitesRes, affectedRes, assetsRes, canalsRes] = await Promise.all([
 					fetch('/api/site/sites'),
 					fetch('/api/map/affected-network-roads'),
-					fetch('/api/asset/assets')
+					fetch('/api/asset/assets'),
+					fetch('/api/canal/canals')          
 				]);
 				allSites         = await sitesRes.json();
-				allAffectedRoads = await affectedRes.json(); 
+				allAffectedRoads = await affectedRes.json();
 				allAssets        = await assetsRes.json();
+				allCanals        = (await canalsRes.json()).map(c => ({ ...c, canalType: 'cable' })); 
 
-				// Base road network layer: all 2600 roads in grigio scuro
 				const netRes  = await fetch('/api/map/roads');
 				const netData = await netRes.json();
 				networkSource.clear();
@@ -843,9 +906,10 @@
 
 			} catch(err) {
 				console.error('Errore loading data:', err);
-				document.getElementById('cnt-sites').textContent = 'ERR';
-				document.getElementById('cnt-roads').textContent = 'ERR';
+				document.getElementById('cnt-sites').textContent  = 'ERR';
+				document.getElementById('cnt-roads').textContent  = 'ERR';
 				document.getElementById('cnt-assets').textContent = 'ERR';
+				document.getElementById('cnt-canals').textContent = 'ERR'; 
 			}
 		}
 
@@ -873,37 +937,30 @@
 				return isChecked('filter-asset-' + a.assetType);
 			});
 
+			const activeCanals = allCanals.filter(() => {
+			return isChecked('filter-canals-visible');
+			});
+
 			// Update sources
 			sitesSource.clear();
 			assetsSource.clear();
 			affectedRoadsSource.clear();
+			canalsSource.clear();
 
 			sitesSource.addFeatures(parseFeatures(activeSites));
 			assetsSource.addFeatures(parseFeatures(activeAssets));
 			affectedRoadsSource.addFeatures(parseFeatures(activeRoads));
+			canalsSource.addFeatures(parseFeatures(allCanals));
 
 			// Update counters
 			document.getElementById('cnt-sites').textContent  = activeSites.length;
 			document.getElementById('cnt-roads').textContent  = activeRoads.length;
 			document.getElementById('cnt-assets').textContent = activeAssets.length;
-
+			document.getElementById('cnt-canals').textContent = activeCanals.length;
 
 		}
 
 		// CRUD
-		let editMode = false;
-
-		function toggleEditMode() {
-			if (!editMode) {
-				if (assetEditMode) toggleAssetEditMode();
-				if (moveAssetMode) toggleMoveAssetMode();
-			}
-			editMode = !editMode;
-			const btn = document.getElementById('btn-edit');
-			btn.style.background = editMode ? '#4f98a3' : '#2a3a5e';
-			btn.textContent = editMode ? '✏️ Edit ON — click on a site' : '✏️ Edit status';
-			map.getTargetElement().style.cursor = editMode ? 'crosshair' : '';
-		}
 
 		function openEditPanel(props) {
 			document.getElementById('panel-title').textContent = 'Edit site';
@@ -975,10 +1032,106 @@
 			});
 		}
 
+		// ── SISTEMA TOGGLE UNIFICATO ─────────────────────────────────────────────
+		const modes = {
+			editSite: {
+				active:  false,
+				btnId:   'btn-edit',
+				onText:  '✏️ Edit ON — click on a site',
+				offText: '✏️ Edit state',
+				onStyle:  { background: '#4f98a3', color: '#fff',    border: '1px solid #4f98a3' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #4f98a3' },
+				cursor:  'crosshair',
+				onActivate: null, onDeactivate: null
+			},
+			editAsset: {
+				active:  false,
+				btnId:   'btn-edit-asset',
+				onText:  '✏️ Asset ON — click on a point',
+				offText: '✏️ Edit asset',
+				onStyle:  { background: '#e8af34', color: '#1a1a2e', border: '1px solid #e8af34' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #e8af34' },
+				cursor:  'crosshair',
+				onActivate: null, onDeactivate: null
+			},
+			moveAsset: {
+				active:  false,
+				btnId:   'btn-move-asset',
+				onText:  '↕️ Move ON — drag an asset',
+				offText: '↕️ Move asset',
+				onStyle:  { background: '#4f98a3', color: '#fff',    border: '1px solid #4f98a3' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #4f98a3' },
+				cursor:  'grab',
+				onActivate: function() {
+					translateInteraction = new ol.interaction.Translate({ layers: [assetsLayer] });
+					translateInteraction.on('translateend', async function(evt) {
+						for (const feature of evt.features.getArray()) {
+							const id = feature.get('id');
+							if (!id) continue;
+							const coord = ol.proj.toLonLat(feature.getGeometry().getCoordinates());
+							await fetch(`/api/asset/assets/${id}`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									assetType: feature.get('assetType'),
+									siteId:    feature.get('siteId') ?? null,
+									geometry:  `POINT(${coord[0]} ${coord[1]})`
+								})
+							});
+						}
+						await loadAllData();
+					});
+					map.addInteraction(translateInteraction);
+				},
+				onDeactivate: function() {
+					if (translateInteraction) {
+						map.removeInteraction(translateInteraction);
+						translateInteraction = null;
+					}
+				}
+			},
+			editCanal: {
+				active:  false,
+				btnId:   'btn-edit-canal',
+				onText:  '✏️ Canal ON — click a line',
+				offText: '✏️ Edit canal',
+				onStyle:  { background: '#0066cc', color: '#fff',    border: '1px solid #0066cc' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #0066cc' },
+				cursor:  'crosshair',
+				onActivate: null, onDeactivate: null
+			}
+			// ← per aggiungere un nuovo mode: copia un blocco qui sopra
+		};
+
+		function activateMode(key) {
+			Object.keys(modes).forEach(k => { if (k !== key && modes[k].active) deactivateMode(k); });
+			const mode = modes[key];
+			if (mode.active) { deactivateMode(key); return; }
+			mode.active = true;
+			const btn = document.getElementById(mode.btnId);
+			if (btn) { btn.textContent = mode.onText; Object.assign(btn.style, mode.onStyle); }
+			map.getTargetElement().style.cursor = mode.cursor;
+			if (mode.onActivate) mode.onActivate();
+		}
+
+		function deactivateMode(key) {
+			const mode = modes[key];
+			if (!mode.active) return;
+			mode.active = false;
+			const btn = document.getElementById(mode.btnId);
+			if (btn) { btn.textContent = mode.offText; Object.assign(btn.style, mode.offStyle); }
+			map.getTargetElement().style.cursor = '';
+			if (mode.onDeactivate) mode.onDeactivate();
+		}
+
+		// Alias — gli onclick= nell'HTML non cambiano
+		function toggleEditMode()      { activateMode('editSite');  }
+		function toggleAssetEditMode() { activateMode('editAsset'); }
+		function toggleMoveAssetMode() { activateMode('moveAsset'); }
+		function toggleCanalEditMode() { activateMode('editCanal'); }
+
 		function resetButtons() {
-			if (editMode) toggleEditMode();
-			if (assetEditMode) toggleAssetEditMode();
-			if (moveAssetMode) toggleMoveAssetMode();
+			Object.keys(modes).forEach(k => deactivateMode(k));
 			map.getTargetElement().style.cursor = '';
 		}
 
@@ -1011,9 +1164,7 @@
 
 		function startPickPoint(type) {
 
-			if (editMode) toggleEditMode();
-			if (assetEditMode) toggleAssetEditMode();
-			if (moveAssetMode) toggleMoveAssetMode();
+			resetButtons();
 
 			if (type === 'from') {
 				routeMarkersSource.clear();
@@ -1287,8 +1438,11 @@
 			</div>
 		</div>
 	</div>
-	<div id="overlay" onclick="document.getElementById('edit-panel').style.display='none';document.getElementById('asset-panel').style.display='none';
-                                document.getElementById('overlay').style.display='none'; resetButtons();"
+	<div id="overlay" onclick="document.getElementById('edit-panel').style.display='none';
+								document.getElementById('asset-panel').style.display='none';
+                                document.getElementById('canal-panel').style.display='none';
+								document.getElementById('overlay').style.display='none'; 
+								resetButtons()"
 		 style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
 	<div id="asset-panel" style="display:none; position:fixed; top:50%; left:50%;
          transform:translate(-50%,-50%); background:#16213e; border:1px solid #4f98a3;
@@ -1327,6 +1481,63 @@
 					Cancel
 				</button>
 				<button id="asset-btn-delete" onclick="deleteAsset()"
+						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
+                    padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
+					🗑
+				</button>
+			</div>
+		</div>
+	</div>
+	<div id="canal-panel" style="display:none; position:fixed; top:50%; left:50%;
+     transform:translate(-50%,-50%); background:#16213e; border:1px solid #0066cc;
+     border-radius:10px; padding:20px; z-index:1000; min-width:300px;
+     box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+		<h3 style="color:#0066cc; margin-bottom:16px; font-size:0.95rem;" id="canal-panel-title">New canal</h3>
+		<input type="hidden" id="canal-id" />
+		<input type="hidden" id="canal-geometry" />
+		<div style="display:flex;flex-direction:column;gap:10px;">
+			<div>
+				<label style="font-size:0.78rem;color:#888;">Name</label>
+				<input id="canal-name" type="text" placeholder="e.g. Via Roma → Via Mazzini"
+					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                   padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
+			</div>
+			<div>
+				<label style="font-size:0.78rem;color:#888;">Status</label>
+				<select id="canal-status"
+						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                    padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
+					<option value="planned">Planned</option>
+					<option value="active">Active</option>
+					<option value="completed">Completed</option>
+				</select>
+			</div>
+			<div>
+				<label style="font-size:0.78rem;color:#888;">From site</label>
+				<select id="canal-from-site"
+						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                    padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
+					<option value="">— none —</option>
+				</select>
+			</div>
+			<div>
+				<label style="font-size:0.78rem;color:#888;">To site</label>
+				<select id="canal-to-site"
+						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                    padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
+					<option value="">— none —</option>
+				</select>
+			</div>
+			<div style="display:flex;gap:8px;margin-top:6px;">
+				<button onclick="saveCanal()"
+						style="flex:1;background:#0066cc;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+					Save
+				</button>
+				<button onclick="document.getElementById('canal-panel').style.display='none';document.getElementById('overlay').style.display='none';"
+						style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+					Cancel
+				</button>
+				<button id="canal-btn-delete" onclick="deleteCanal()"
 						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
                     padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
 					🗑
