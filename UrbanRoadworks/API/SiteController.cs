@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.IO;
+using Npgsql;
 using UrbanRoadworks.Data;
 using UrbanRoadworks.Models;
 using UrbanRoadworks.Models.DTOs;
@@ -8,9 +9,10 @@ namespace UrbanRoadworks.API
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class SiteController(ApplicationDbContext context) : ControllerBase
+    public class SiteController(ApplicationDbContext context, IConfiguration configuration) : ControllerBase
     {
         private readonly ApplicationDbContext _context = context;
+        private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
         // all construction sites (polygons)
         // Optional parameter: ?status=active
@@ -61,13 +63,20 @@ namespace UrbanRoadworks.API
         {
             var site = _context.RoadworkSites.Find(id);
             if (site == null) return NotFound();
-
+            if (dto.Geometry != null && site.Status != "planned")
+                return BadRequest(new { error = "Geometry can only be modified for planned sites." });
             site.Name = dto.Name;
             site.Status = dto.Status;
             site.StartDate = dto.StartDate.HasValue
                 ? DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc) : null;
             site.EndDate = dto.EndDate.HasValue
                 ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc) : null;
+
+            if (dto.Geometry != null)
+            {
+                var reader = new WKTReader();
+                site.Geometry = (NetTopologySuite.Geometries.Polygon)reader.Read(dto.Geometry);
+            }
 
             if (dto.Status == "completed")
             {
@@ -90,6 +99,100 @@ namespace UrbanRoadworks.API
             _context.RoadworkSites.Remove(site);
             _context.SaveChanges();
             return Ok();
+        }
+
+        [HttpGet("nearest-by-road")]
+        public async Task<IActionResult> GetNearestByRoad([FromQuery] double lon, [FromQuery] double lat, [FromQuery] int n = 3)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            // Nodo più vicino al punto cliccato
+            await using var cmdSource = new NpgsqlCommand(@"
+                SELECT id FROM road_network_noded_vertices
+                ORDER BY the_geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(@lon,@lat),4326),3857)
+                LIMIT 1", conn);
+            cmdSource.Parameters.AddWithValue("lon", lon);
+            cmdSource.Parameters.AddWithValue("lat", lat);
+            var sourceNode = (long)(await cmdSource.ExecuteScalarAsync() ?? 0L);
+            if (sourceNode == 0) return Ok(Array.Empty<object>());
+
+            // Centroide di ogni cantiere → nodo più vicino nella rete
+            await using var cmdSites = new NpgsqlCommand(@"
+                SELECT id,
+                       ST_X(ST_Transform(ST_Centroid(geometry),4326)) AS cx,
+                       ST_Y(ST_Transform(ST_Centroid(geometry),4326)) AS cy
+                FROM roadwork_sites
+                WHERE geometry IS NOT NULL
+                AND status != 'completed'", conn);
+            var sites = new List<(int id, long node, double cx, double cy)>();
+            await using (var rdr = await cmdSites.ExecuteReaderAsync())
+            {
+                while (await rdr.ReadAsync())
+                {
+                    sites.Add((rdr.GetInt32(0), 0, rdr.GetDouble(1), rdr.GetDouble(2)));
+                }
+            }
+
+            // Per ogni cantiere trova il nodo più vicino
+            var targetNodes = new Dictionary<long, int>(); // node → siteId
+            foreach (var (siteId, _, cx, cy) in sites)
+            {
+                await using var cmdNode = new NpgsqlCommand(@"
+                    SELECT id FROM road_network_noded_vertices
+                    ORDER BY the_geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(@lon,@lat),4326),3857)
+                    LIMIT 1", conn);
+                cmdNode.Parameters.AddWithValue("lon", cx);
+                cmdNode.Parameters.AddWithValue("lat", cy);
+                var node = (long)(await cmdNode.ExecuteScalarAsync() ?? 0L);
+                if (node != 0 && node != sourceNode)
+                    targetNodes.TryAdd(node, siteId);
+            }
+
+            if (!targetNodes.Any()) return Ok(Array.Empty<object>());
+
+            var targets = string.Join(",", targetNodes.Keys);
+
+            // Dijkstra da source verso tutti i target
+            await using var cmdDijk = new NpgsqlCommand($@"
+                SELECT end_vid, agg_cost
+                FROM pgr_dijkstraCost(
+                    'SELECT id, source, target,
+                            CASE WHEN oneway_reversed THEN -1 ELSE cost END AS cost,
+                            CASE WHEN oneway THEN -1 ELSE reverse_cost END AS reverse_cost
+                     FROM road_network_noded',
+                    {sourceNode}, ARRAY[{targets}], directed := true
+                )
+                ORDER BY agg_cost
+                LIMIT {n}", conn);
+
+            var wktWriter = new WKTWriter();
+            var results = new List<object>();
+
+            await using (var rdr = await cmdDijk.ExecuteReaderAsync())
+            {
+                while (await rdr.ReadAsync())
+                {
+                    var endNode = rdr.GetInt64(0);
+                    var cost = rdr.GetDouble(1);
+                    if (!targetNodes.TryGetValue(endNode, out var siteId)) continue;
+
+                    var site = _context.RoadworkSites.Find(siteId);
+                    if (site == null) continue;
+
+                    results.Add(new
+                    {
+                        site.Id,
+                        site.Name,
+                        site.Status,
+                        site.StartDate,
+                        site.EndDate,
+                        RoadDistanceMeters = (int)cost,
+                        Geometry = wktWriter.Write(site.Geometry) 
+                    });
+                }
+            }
+            return Ok(results);
         }
     }
 }

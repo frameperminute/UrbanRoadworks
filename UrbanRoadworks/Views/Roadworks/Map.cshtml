@@ -306,6 +306,18 @@
 			</div>
 		</div>
 		<div class="divider"></div>
+		<div class="divider"></div>
+		<div>
+			<div class="section-title">Walls</div>
+			<div class="filter-group">
+				<label>
+					<input type="checkbox" checked onchange="applyFilters()" id="filter-walls-visible" />
+					<span class="line-sample" style="background:#90a4ae;"></span>
+					Walls (drillable)
+				</label>
+			</div>
+		</div>
+		<div class="divider"></div>
 
 		<div id="counter">
 			<div>Sites: <span id="cnt-sites">–</span></div>
@@ -358,7 +370,12 @@
 					+ New site
 				</button>
 				<button onclick="toggleEditMode()" id="btn-edit" style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					✏️ Edit state
+					✏️ Edit site
+				</button>
+				<button onclick="toggleModifySiteMode()" id="btn-modify-site"
+						style="background:#2a3a5e;color:#eee;border:1px solid #fdab43;
+									padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					↕️ Reshape site
 				</button>
 				<button onclick="startDrawAsset()" style="background:#e8af34;color:#1a1a2e;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
 					+ New asset
@@ -377,6 +394,42 @@
 				<button onclick="toggleCanalEditMode()" id="btn-edit-canal" style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
 					✏️ Edit canal
 				</button>
+				<button onclick="toggleModifyCanalMode()" id="btn-modify-canal"
+						style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;
+									padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					↕️ Reshape canal
+				</button>
+				<button onclick="startDrawWall()" style="background:#546e7a;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					+ New wall
+				</button>
+				<button onclick="toggleWallEditMode()" id="btn-edit-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					✏️ Edit wall
+				</button>
+				<button onclick="toggleModifyWallMode()" id="btn-modify-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					🔷 Reshape wall
+				</button>
+				<button onclick="toggleQueryAreaMode()" id="btn-query-area"
+						style="background:#2a3a5e;color:#eee;border:1px solid #dd6974;
+								padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+					🔲 Query area
+				</button>
+				<button onclick="clearQueryArea()" id="btn-clear-query"
+						style="display:none;background:#2a3a5e;color:#888;border:none;
+								padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;">
+					✕ Clear selection
+				</button>
+				<div style="display:flex;gap:6px;align-items:center">
+					<button onclick="toggleNearestMode()" id="btn-query-nearest"
+							style="flex:1;background:#2a3a5e;color:#eee;border:1px solid #dd6974;
+									padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+						N nearest sites
+					</button>
+					<input type="number" id="nearest-n" min="1" max="50" value="3"
+						   style="width:52px;background:#0d1b2a;border:1px solid #dd6974;color:#eee;
+									padding:7px 6px;border-radius:5px;font-size:0.82rem;text-align:center;" />
+				</div>
+				<div id="query-info" style="display:none;background:#0f3e44;border-radius:6px;
+								padding:8px;font-size:0.75rem;color:#9dd;"></div>
 			</div>
 		</div>
 		<div class="divider"></div>
@@ -448,16 +501,72 @@
 		let allAssets = [];
 		let allAffectedRoads = [];
 		let allCanals = [];
+		let allWalls = [];
+		let drawWall = null;		
 		let drawSite = null;
 		let drawAsset = null;
 		let drawCanal = null;
 		let translateInteraction = null;
+		let modifySiteInteraction  = null;
+		let modifyCanalInteraction = null;
+		let modifyWallInteraction = null;
 
 		const sitesSource  = new ol.source.Vector();
 		const assetsSource = new ol.source.Vector();
 		const affectedRoadsSource = new ol.source.Vector();
 		const networkSource = new ol.source.Vector();
 		const canalsSource = new ol.source.Vector();
+		const queryHighlightSource = new ol.source.Vector();
+		const wallsSource = new ol.source.Vector();
+
+		const wallsLayer = new ol.layer.Vector({
+			source: wallsSource,
+			style: function(feature) {
+				const thickness = feature.get('thickness') || 10;
+				// 5–30cm → larghezza linea 2–10px
+				const lineWidth = Math.max(2, Math.min(10, thickness / 3));
+				const material = feature.get('material');
+				const colors = {
+					concrete:  '#b0bec5',
+					brick:     '#ef9a9a',
+					drywall:   '#fff9c4',
+					stone:     '#a1887f'
+				};
+				return new ol.style.Style({
+					stroke: new ol.style.Stroke({
+						color: colors[material] || '#e0e0e0',
+						width: lineWidth
+					})
+				});
+			},
+			zIndex: 5
+		});
+
+		const queryHighlightLayer  = new ol.layer.Vector({
+			source: queryHighlightSource,
+			style: function(feature) {
+				const geomType = feature.getGeometry().getType();
+				if (geomType === 'Point') {
+					return new ol.style.Style({
+						image: new ol.style.Circle({
+							radius: 12,
+							fill:   new ol.style.Fill({ color: 'rgba(232,175,52,0.5)' }),
+							stroke: new ol.style.Stroke({ color: '#e8af34', width: 3 })
+						})
+					});
+				}
+				if (geomType === 'LineString') {
+					return new ol.style.Style({
+						stroke: new ol.style.Stroke({ color: '#e8af34', width: 6 })
+					});
+				}
+				return new ol.style.Style({
+					fill:   new ol.style.Fill({ color: 'rgba(232,175,52,0.25)' }),
+					stroke: new ol.style.Stroke({ color: '#e8af34', width: 3 })
+				});
+			},
+			zIndex: 8
+		});
 
 		const canalsLayer  = new ol.layer.Vector({
 			source: canalsSource,
@@ -542,9 +651,11 @@
 				new ol.layer.Tile({ source: new ol.source.OSM() }),
 				networkLayer,
 				canalsLayer,
+				wallsLayer,
 				sitesLayer,
 				assetsLayer,
-				affectedRoadsLayer
+				affectedRoadsLayer,
+				queryHighlightLayer
 			],
 			view: new ol.View({
 				center: ol.proj.fromLonLat([13.0680, 43.1360]),
@@ -554,13 +665,12 @@
 
 		const popup = document.getElementById('popup');
 		map.on('click', async function(evt) {
+		// 1. Modalità pick punto (navigazione A→B)
 			if (pickMode) {
 				const coord = ol.proj.toLonLat(evt.coordinate);
-				// Remove previous marker of the same type
 				routeMarkersSource.getFeatures()
 					.filter(f => f.get('pointType') === pickMode)
 					.forEach(f => routeMarkersSource.removeFeature(f));
-				// Add new marker
 				const marker = new ol.Feature({ geometry: new ol.geom.Point(evt.coordinate) });
 				marker.set('pointType', pickMode);
 				routeMarkersSource.addFeature(marker);
@@ -574,9 +684,65 @@
 				}
 				pickMode = null;
 				map.getTargetElement().style.cursor = '';
-				// Show 'compute' button only if both points are given
-				if (routeFrom && routeTo) {
-					document.getElementById('btn-route').style.display = 'block';
+				if (routeFrom && routeTo) document.getElementById('btn-route').style.display = 'block';
+				return;
+			}
+
+			// 2. Modalità N nearest sites — PRIMA del forEachFeatureAtPixel
+			if (modes.queryNearest.active) {
+				const coord = ol.proj.toLonLat(evt.coordinate);
+				const nRaw = parseInt(document.getElementById('nearest-n').value) || 3;
+				const n = Math.max(1, Math.min(nRaw, 50));   // clamp 1–50
+				deactivateMode('queryNearest');
+				try {
+					const r = await fetch(`/api/site/nearest-by-road?lon=${coord[0]}&lat=${coord[1]}&n=${n}`);
+					const sites = await r.json();
+					queryHighlightSource.clear();
+					const fmt = new ol.format.WKT();
+
+					// Marker punto cliccato
+					const clickMarker = new ol.Feature({ geometry: new ol.geom.Point(evt.coordinate) });
+					clickMarker.set('clickMarker', true);
+					queryHighlightSource.addFeature(clickMarker);
+
+					// Cap: se la API ritorna meno del richiesto, usa quanti ne ha
+					const actual = sites.length;   // ≤ n
+
+					sites.forEach((s, i) => {
+						const geoKey = Object.keys(s).find(k => k.toLowerCase() === 'geometry' || k.toLowerCase() === 'wkt');
+						const geoValue = geoKey ? s[geoKey] : null;
+						if (!geoValue) return;
+
+						const f = fmt.readFeature(geoValue, {
+							dataProjection: 'EPSG:4326',
+							featureProjection: 'EPSG:3857'
+						});
+
+						// ← Escludi 'geometry' per non sovrascrivere la geometria OL con la stringa WKT
+						const { geometry, Geometry, ...propsWithoutGeom } = s;
+						f.setProperties(propsWithoutGeom);
+
+						queryHighlightSource.addFeature(f);
+
+						const centroid = ol.extent.getCenter(f.getGeometry().getExtent());
+						const line = new ol.Feature({ geometry: new ol.geom.LineString([evt.coordinate, centroid]) });
+						line.set('connectLine', true);
+						line.set('rank', i + 1);
+						queryHighlightSource.addFeature(line);
+					});
+
+					const info = document.getElementById('query-info');
+					info.style.display = 'block';
+					const heading = actual < n
+						? `<b>${actual} nearest sites</b> (max available)<br>`
+						: `<b>${actual} nearest sites</b><br>`;
+					info.innerHTML = heading + sites.map((s, i) => {
+						const dist = (s.roadDistanceMeters / 1000).toFixed(2);
+						return `<div><i>${i+1}.</i> <b>${s.name || s.id}</b> — ${dist} km road</div>`;
+					}).join('');
+					document.getElementById('btn-clear-query').style.display = 'block';
+				} catch(e) {
+					console.error('Nearest sites error:', e);
 				}
 				return;
 			}
@@ -596,6 +762,10 @@
 				if (modes.editCanal.active && props.id && props.status && !props.assetType && !props.siteStatus) { 
 					openCanalEditPanel(props);  
 					return; 
+				}
+				if (modes.editWall.active && props.id && props.thickness !== undefined) {
+					openWallEditPanel(props);
+					return;
 				}
 				if (props.name) {
 					const badgeClass = 'badge-' + (props.status || 'planned');
@@ -886,16 +1056,19 @@
 
 		async function loadAllData() {
 			try {
-				const [sitesRes, affectedRes, assetsRes, canalsRes] = await Promise.all([
+				const [sitesRes, affectedRes, assetsRes, canalsRes, wallsRes] = await Promise.all([
 					fetch('/api/site/sites'),
 					fetch('/api/map/affected-network-roads'),
 					fetch('/api/asset/assets'),
-					fetch('/api/canal/canals')          
+					fetch('/api/canal/canals'),
+					fetch('/api/wall/walls')
 				]);
+
 				allSites         = await sitesRes.json();
 				allAffectedRoads = await affectedRes.json();
 				allAssets        = await assetsRes.json();
 				allCanals        = (await canalsRes.json()).map(c => ({ ...c, canalType: 'cable' })); 
+				allWalls = await wallsRes.json();
 
 				const netRes  = await fetch('/api/map/roads');
 				const netData = await netRes.json();
@@ -916,6 +1089,42 @@
 		// Filters
 		function isChecked(id) {
 			return document.getElementById(id)?.checked ?? true;
+		}
+
+		function applyAreaFilter(extent) {
+			queryHighlightSource.clear();
+			let nSites = 0, nAssets = 0, nCanals = 0;
+
+			sitesSource.getFeaturesInExtent(extent).forEach(f => {
+				queryHighlightSource.addFeature(f.clone());
+				nSites++;
+			});
+			assetsSource.getFeaturesInExtent(extent).forEach(f => {
+				queryHighlightSource.addFeature(f.clone());
+				nAssets++;
+			});
+			canalsSource.getFeatures().forEach(f => {
+				// Per le linee getFeaturesInExtent non basta — controlla intersezione
+				if (f.getGeometry().intersectsExtent(extent)) {
+					queryHighlightSource.addFeature(f.clone());
+					nCanals++;
+				}
+			});
+
+			const info = document.getElementById('query-info');
+			info.style.display = 'block';
+			info.innerHTML = `<b>Selection:</b><br>
+				Sites: <b>${nSites}</b> &nbsp;|&nbsp;
+				Assets: <b>${nAssets}</b> &nbsp;|&nbsp;
+				Canals: <b>${nCanals}</b>`;
+			document.getElementById('btn-clear-query').style.display = 'block';
+			deactivateMode('queryArea');
+		}
+
+		function clearQueryArea() {
+			queryHighlightSource.clear();
+			document.getElementById('query-info').style.display = 'none';
+			document.getElementById('btn-clear-query').style.display = 'none';
 		}
 
 		function applyFilters() {
@@ -946,11 +1155,14 @@
 			assetsSource.clear();
 			affectedRoadsSource.clear();
 			canalsSource.clear();
+			wallsSource.clear();
 
 			sitesSource.addFeatures(parseFeatures(activeSites));
 			assetsSource.addFeatures(parseFeatures(activeAssets));
 			affectedRoadsSource.addFeatures(parseFeatures(activeRoads));
-			canalsSource.addFeatures(parseFeatures(allCanals));
+			canalsSource.addFeatures(parseFeatures(activeCanals));
+			wallsSource.addFeatures(parseFeatures(allWalls));
+
 
 			// Update counters
 			document.getElementById('cnt-sites').textContent  = activeSites.length;
@@ -958,6 +1170,88 @@
 			document.getElementById('cnt-assets').textContent = activeAssets.length;
 			document.getElementById('cnt-canals').textContent = activeCanals.length;
 
+		}
+
+		//walls
+		function startDrawWall() {
+			resetButtons();
+			const btn = document.querySelector('[onclick="startDrawWall()"]');
+			btn.textContent = '🖊 Draw the wall...';
+			btn.style.background = '#78909c';
+
+			const drawSource = new ol.source.Vector();
+			drawWall = new ol.interaction.Draw({ source: drawSource, type: 'LineString' });
+
+			drawWall.on('drawend', function(evt) {
+				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
+					dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
+				});
+				document.getElementById('wall-geometry').value = wkt;
+				document.getElementById('wall-id').value = '';
+				document.getElementById('wall-thickness').value = '20';
+				document.getElementById('wall-material').value = 'concrete';
+				document.getElementById('wall-btn-delete').style.display = 'none';
+				document.getElementById('wall-panel-title').textContent = 'New wall';
+				populateWallSiteDropdown();
+				document.getElementById('wall-panel').style.display = 'block';
+				document.getElementById('overlay').style.display = 'block';
+				map.removeInteraction(drawWall);
+				drawWall = null;
+				btn.textContent = '+ New wall';
+				btn.style.background = '#546e7a';
+			});
+			map.addInteraction(drawWall);
+		}
+
+		function openWallEditPanel(props) {
+			document.getElementById('wall-panel-title').textContent = 'Edit wall';
+			document.getElementById('wall-id').value        = props.id || '';
+			document.getElementById('wall-thickness').value = props.thickness || 20;
+			document.getElementById('wall-material').value  = props.material || 'concrete';
+			document.getElementById('wall-geometry').value  = '';
+			document.getElementById('wall-btn-delete').style.display = 'block';
+			populateWallSiteDropdown(props.siteId);
+			document.getElementById('wall-panel').style.display = 'block';
+			document.getElementById('overlay').style.display = 'block';
+		}
+
+		function populateWallSiteDropdown(selectedId = null) {
+			const sel = document.getElementById('wall-site-id');
+			sel.innerHTML = '<option value="">— none —</option>';
+			allSites.filter(s => s.status === 'active' || s.status === 'planned').forEach(s => {
+				const opt = document.createElement('option');
+				opt.value = s.id;
+				opt.textContent = `#${s.id} — ${s.name || 'No name'}`;
+				if (selectedId && s.id === parseInt(selectedId)) opt.selected = true;
+				sel.appendChild(opt);
+			});
+		}
+
+		async function saveWall() {
+			const id = document.getElementById('wall-id').value;
+			const body = {
+				siteId:    parseInt(document.getElementById('wall-site-id').value) || null,
+				thickness: parseFloat(document.getElementById('wall-thickness').value) || 20,
+				material:  document.getElementById('wall-material').value,
+				geometry:  document.getElementById('wall-geometry').value || null
+			};
+			const url    = id ? `/api/wall/walls/${id}` : '/api/wall/walls';
+			const method = id ? 'PUT' : 'POST';
+			await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+			document.getElementById('wall-panel').style.display = 'none';
+			document.getElementById('overlay').style.display = 'none';
+			resetButtons();
+			await loadAllData();
+		}
+
+		async function deleteWall() {
+			const id = document.getElementById('wall-id').value;
+			if (!id || !confirm('Delete this wall?')) return;
+			await fetch(`/api/wall/walls/${id}`, { method: 'DELETE' });
+			document.getElementById('wall-panel').style.display = 'none';
+			document.getElementById('overlay').style.display = 'none';
+			resetButtons();
+			await loadAllData();
 		}
 
 		// CRUD
@@ -1034,6 +1328,134 @@
 
 		// ── SISTEMA TOGGLE UNIFICATO ─────────────────────────────────────────────
 		const modes = {
+			editWall: {
+				active:  false,
+				btnId:   'btn-edit-wall',
+				onText:  '✏️ Wall ON — click a wall',
+				offText: '✏️ Edit wall',
+				onStyle:  { background: '#78909c', color: '#fff', border: '1px solid #78909c' },
+				offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #78909c' },
+				cursor:  'crosshair',
+				onActivate: null, onDeactivate: null
+			},
+			modifyWall: {
+				active:  false,
+				btnId:   'btn-modify-wall',
+				onText:  '↕️ Wall ON — drag a vertex',
+				offText: '↕️ Reshape wall',
+				onStyle:  { background: '#78909c', color: '#fff', border: '1px solid #78909c' },
+				offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #78909c' },
+				cursor:  'crosshair',
+				onActivate: function() {
+					modifyWallInteraction = new ol.interaction.Modify({ source: wallsSource });
+					modifyWallInteraction.on('modifyend', async function(evt) {
+						for (const feature of evt.features.getArray()) {
+							const id = feature.get('id');
+							if (!id) continue;
+							const wkt = new ol.format.WKT().writeGeometry(feature.getGeometry(), {
+								dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
+							});
+							await fetch(`/api/wall/walls/${id}`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									siteId:    feature.get('siteId') ?? null,
+									thickness: feature.get('thickness') ?? 20,
+									material:  feature.get('material') ?? 'concrete',
+									geometry:  wkt
+								})
+							});
+						}
+						await loadAllData();
+					});
+					map.addInteraction(modifyWallInteraction);
+				},
+				onDeactivate: function() {
+					if (modifyWallInteraction) { map.removeInteraction(modifyWallInteraction); modifyWallInteraction = null; }
+				}
+			},
+			modifySite: {
+				active:  false,
+				btnId:   'btn-modify-site',
+				onText:  '↕️ Site ON — drag a vertex',
+				offText: '↕️ Reshape site',
+				onStyle:  { background: '#fdab43', color: '#1a1a2e', border: '1px solid #fdab43' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #fdab43' },
+				cursor:  'crosshair',
+				onActivate: function() {
+					modifySiteInteraction = new ol.interaction.Modify({ source: sitesSource });
+					modifySiteInteraction.on('modifyend', async function(evt) {
+						for (const feature of evt.features.getArray()) {
+							const id = feature.get('id');
+							if (!id) continue;
+							const wkt = new ol.format.WKT().writeGeometry(
+								feature.getGeometry(),
+								{ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' }
+							);
+							await fetch(`/api/site/sites/${id}`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name:      feature.get('name'),
+									status:    feature.get('status'),
+									startDate: feature.get('startDate') ?? null,
+									endDate:   feature.get('endDate')   ?? null,
+									geometry:  wkt
+								})
+							});
+						}
+						await loadAllData();
+					});
+					map.addInteraction(modifySiteInteraction);
+				},
+				onDeactivate: function() {
+					if (modifySiteInteraction) {
+						map.removeInteraction(modifySiteInteraction);
+						modifySiteInteraction = null;
+					}
+				}
+			},
+			modifyCanal: {
+				active:  false,
+				btnId:   'btn-modify-canal',
+				onText:  '↕️ Canal ON — drag a vertex',
+				offText: '↕️ Reshape canal',
+				onStyle:  { background: '#0066cc', color: '#fff',    border: '1px solid #0066cc' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #0066cc' },
+				cursor:  'crosshair',
+				onActivate: function() {
+					modifyCanalInteraction = new ol.interaction.Modify({ source: canalsSource });
+					modifyCanalInteraction.on('modifyend', async function(evt) {
+						for (const feature of evt.features.getArray()) {
+							const id = feature.get('id');
+							if (!id) continue;
+							const wkt = new ol.format.WKT().writeGeometry(
+								feature.getGeometry(),
+								{ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' }
+							);
+							await fetch(`/api/canal/canals/${id}`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name:     feature.get('name'),
+									status:   feature.get('status'),
+									fromSite: feature.get('fromSite') ?? null,
+									toSite:   feature.get('toSite')   ?? null,
+									geometry: wkt
+								})
+							});
+						}
+						await loadAllData();
+					});
+					map.addInteraction(modifyCanalInteraction);
+				},
+				onDeactivate: function() {
+					if (modifyCanalInteraction) {
+						map.removeInteraction(modifyCanalInteraction);
+						modifyCanalInteraction = null;
+					}
+				}
+			},
 			editSite: {
 				active:  false,
 				btnId:   'btn-edit',
@@ -1099,8 +1521,42 @@
 				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #0066cc' },
 				cursor:  'crosshair',
 				onActivate: null, onDeactivate: null
-			}
-			// ← per aggiungere un nuovo mode: copia un blocco qui sopra
+			},
+			queryArea: {
+				active:  false,
+				btnId:   'btn-query-area',
+				onText:  '🔲 Drag to select area...',
+				offText: '🔲 Query area',
+				onStyle:  { background: '#dd6974', color: '#fff',    border: '1px solid #dd6974' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #dd6974' },
+				cursor:  'crosshair',
+				onActivate: function() {
+					dragBoxInteraction = new ol.interaction.DragBox({
+						condition: ol.events.condition.noModifierKeys
+					});
+					dragBoxInteraction.on('boxend', function() {
+						const extent = dragBoxInteraction.getGeometry().getExtent();
+						applyAreaFilter(extent);
+					});
+					map.addInteraction(dragBoxInteraction);
+				},
+				onDeactivate: function() {
+					if (dragBoxInteraction) {
+						map.removeInteraction(dragBoxInteraction);
+						dragBoxInteraction = null;
+					}
+				}
+			},
+			queryNearest: {
+				active:  false,
+				btnId:   'btn-query-nearest',
+				onText:  '📍 Click a point on the map...',
+				offText: '📍 N nearest sites',
+				onStyle:  { background: '#dd6974', color: '#fff',    border: '1px solid #dd6974' },
+				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #dd6974' },
+				cursor:  'crosshair',
+				onActivate: null, onDeactivate: null
+			},
 		};
 
 		function activateMode(key) {
@@ -1129,6 +1585,13 @@
 		function toggleAssetEditMode() { activateMode('editAsset'); }
 		function toggleMoveAssetMode() { activateMode('moveAsset'); }
 		function toggleCanalEditMode() { activateMode('editCanal'); }
+		function toggleQueryAreaMode() { activateMode('queryArea'); }
+		function toggleNearestMode() { activateMode('queryNearest'); }
+		function toggleModifySiteMode()  { activateMode('modifySite');  }
+		function toggleModifyCanalMode() { activateMode('modifyCanal'); }
+		function toggleWallEditMode()   { activateMode('editWall');   }
+		function toggleModifyWallMode() { activateMode('modifyWall'); }
+
 
 		function resetButtons() {
 			Object.keys(modes).forEach(k => deactivateMode(k));
@@ -1441,6 +1904,7 @@
 	<div id="overlay" onclick="document.getElementById('edit-panel').style.display='none';
 								document.getElementById('asset-panel').style.display='none';
                                 document.getElementById('canal-panel').style.display='none';
+								document.getElementById('wall-panel').style.display='none';
 								document.getElementById('overlay').style.display='none'; 
 								resetButtons()"
 		 style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
@@ -1540,6 +2004,47 @@
 				<button id="canal-btn-delete" onclick="deleteCanal()"
 						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
                     padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
+					🗑
+				</button>
+			</div>
+		</div>
+	</div>
+	<div id="wall-panel" style="display:none; position:fixed; top:50%; left:50%;
+     transform:translate(-50%,-50%); background:#16213e; border:1px solid #78909c;
+     border-radius:10px; padding:20px; z-index:1000; min-width:300px;
+     box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+		<h3 style="color:#90a4ae; margin-bottom:16px; font-size:0.95rem;" id="wall-panel-title">New wall</h3>
+		<input type="hidden" id="wall-id" />
+		<input type="hidden" id="wall-geometry" />
+		<div style="display:flex;flex-direction:column;gap:10px;">
+			<div>
+				<label style="font-size:0.78rem;color:#888;">Associated site</label>
+				<select id="wall-site-id" style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
+					<option value="">— none —</option>
+				</select>
+			</div>
+			<div>
+				<label style="font-size:0.78rem;color:#888;">Thickness (cm)</label>
+				<input id="wall-thickness" type="number" min="1" max="200" value="20"
+					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
+			</div>
+			<div>
+				<label style="font-size:0.78rem;color:#888;">Material</label>
+				<select id="wall-material" style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
+					<option value="concrete">🔘 Concrete</option>
+					<option value="brick">🧱 Brick</option>
+					<option value="drywall">📋 Drywall</option>
+					<option value="stone">🪨 Stone</option>
+				</select>
+			</div>
+			<div style="display:flex;gap:8px;margin-top:6px;">
+				<button onclick="saveWall()" style="flex:1;background:#546e7a;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">Save</button>
+				<button onclick="document.getElementById('wall-panel').style.display='none';document.getElementById('overlay').style.display='none';resetButtons()"
+						style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+					Cancel
+				</button>
+				<button id="wall-btn-delete" onclick="deleteWall()"
+						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
 					🗑
 				</button>
 			</div>

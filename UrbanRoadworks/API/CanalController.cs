@@ -58,7 +58,8 @@ namespace UrbanRoadworks.API
         {
             var canal = _context.Canals.Find(id);
             if (canal == null) return NotFound();
-
+            if (dto.Geometry != null && canal.Status != "planned")
+                return BadRequest(new { error = "Geometry can only be modified for planned canals." });
             canal.Name = dto.Name;
             canal.Status = dto.Status;
             canal.FromSite = dto.FromSite;

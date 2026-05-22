@@ -16,12 +16,16 @@ namespace UrbanRoadworks.Data
             modelBuilder.Entity<Canal>()
                 .Property(c => c.Geometry)
                 .HasColumnType("geometry(LineString,3857)");
+
+            modelBuilder.Entity<Wall>()
+                .Property(w => w.Geometry)
+                .HasColumnType("geometry(LineString,3857)");
         }
 
         // A DbSet for each project table
         public DbSet<RoadworkSite> RoadworkSites { get; set; }
         public DbSet<RoadworkAsset> RoadworkAssets { get; set; }
         public DbSet<Canal> Canals { get; set; }
-
+        public DbSet<Wall> Walls { get; set; }
     }
 }
