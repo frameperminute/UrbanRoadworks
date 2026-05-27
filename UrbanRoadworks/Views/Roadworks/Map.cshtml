@@ -430,6 +430,73 @@
 				</div>
 				<div id="query-info" style="display:none;background:#0f3e44;border-radius:6px;
 								padding:8px;font-size:0.75rem;color:#9dd;"></div>
+				<div class="divider"></div>
+				<div>
+					<div class="section-title">UTP Cable Planning</div>
+					<button onclick="toggleCanalSelectMode()" id="btn-canal-select"
+							style="width:100%; background:#2a3a5e; color:#eee; border:1px solid #1a80e5;
+								padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem;">
+						🖱️ Select canals
+					</button>
+					<div id="cable-panel-body" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+						<p style="font-size:0.75rem; color:#888;">
+							Click canals on the map to select them, then calculate.
+						</p>
+						<div id="cable-selected-info"
+							 style="background:#0d1b2a; border:1px solid #2a3a5e; border-radius:5px;
+                    padding:6px 8px; font-size:0.75rem; color:#9dd; display:none;">
+							<span id="cable-sel-count">0</span> canal(s) selected —
+							<span id="cable-sel-meters">0</span> m total
+						</div>
+						<div style="display:flex; gap:6px;">
+							<button onclick="calculateCablePlan()" id="btn-cable-calc"
+									style="flex:1; background:#4f98a3; color:#fff; border:none;
+                           padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem;">
+								⚙️ Calculate
+							</button>
+							<button onclick="clearCablePlan()" id="btn-cable-clear"
+									style="background:#2a3a5e; color:#888; border:none;
+                           padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.78rem;">
+								✕
+							</button>
+						</div>
+
+						<div id="cable-results" style="display:none; flex-direction:column; gap:6px;">
+							<div style="height:1px; background:#2a3a5e;"></div>
+							<div style="background:#0f3e44; border-radius:6px; padding:8px;
+                        font-size:0.75rem; color:#9dd; display:flex; flex-direction:column; gap:3px;">
+								<div style="display:flex; justify-content:space-between;">
+									<span>🔌 Total cable</span>
+									<span id="cr-meters" style="font-weight:700; color:#4f98a3;">—</span>
+								</div>
+								<div style="display:flex; justify-content:space-between;">
+									<span>📦 UTP segments (100m)</span>
+									<span id="cr-segments" style="font-weight:700; color:#4f98a3;">—</span>
+								</div>
+								<div style="display:flex; justify-content:space-between;">
+									<span>🔀 Nodes needed</span>
+									<span id="cr-nodes" style="font-weight:700; color:#4f98a3;">—</span>
+								</div>
+								<div style="display:flex; justify-content:space-between;">
+									<span>⏱️ Est. work time</span>
+									<span id="cr-time" style="font-weight:700; color:#4f98a3;">—</span>
+								</div>
+							</div>
+
+							<div style="font-size:0.7rem; font-weight:600; text-transform:uppercase;
+                        letter-spacing:1px; color:#4f98a3;">
+								Segments
+							</div>
+							<div id="cr-route-detail" style="display:flex; flex-direction:column; gap:3px;"></div>
+
+							<div style="font-size:0.7rem; font-weight:600; text-transform:uppercase;
+                        letter-spacing:1px; color:#4f98a3;">
+								Walls to drill
+							</div>
+							<div id="cr-walls" style="display:flex; flex-direction:column; gap:3px;"></div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 		<div class="divider"></div>
@@ -510,6 +577,29 @@
 		let modifySiteInteraction  = null;
 		let modifyCanalInteraction = null;
 		let modifyWallInteraction = null;
+		let dragBoxInteraction = null;
+
+		const cableNodesSource = new ol.source.Vector();
+		const cableNodesLayer = new ol.layer.Vector({
+			source: cableNodesSource,
+			style: function(feature) {
+				const nodeIndex = feature.get('nodeIndex');
+				return new ol.style.Style({
+					image: new ol.style.Circle({
+						radius: 9,
+						fill: new ol.style.Fill({ color: 'rgba(232,175,52,0.9)' }),
+						stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
+					}),
+					text: new ol.style.Text({
+						text: 'N' + nodeIndex,
+						fill: new ol.style.Fill({ color: '#1a1a2e' }),
+						font: 'bold 9px sans-serif',
+						offsetY: 1
+					})
+				});
+			},
+			zIndex: 11
+		});
 
 		const sitesSource  = new ol.source.Vector();
 		const assetsSource = new ol.source.Vector();
@@ -655,7 +745,8 @@
 				sitesLayer,
 				assetsLayer,
 				affectedRoadsLayer,
-				queryHighlightLayer
+				queryHighlightLayer,
+				cableNodesLayer
 			],
 			view: new ol.View({
 				center: ol.proj.fromLonLat([13.0680, 43.1360]),
@@ -665,7 +756,19 @@
 
 		const popup = document.getElementById('popup');
 		map.on('click', async function(evt) {
-		// 1. Modalità pick punto (navigazione A→B)
+			if (modes.canalSelect && modes.canalSelect.active) {
+				const feature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
+					layerFilter: l => l === canalsLayer
+				});
+				if (feature && feature.get('id')) {
+					const id = feature.get('id');
+					if (selectedCanalIds.has(id)) selectedCanalIds.delete(id);
+					else selectedCanalIds.add(id);
+					refreshCanalSelectionHighlight();
+				}
+				return;
+			}
+		    // navigation A -> B
 			if (pickMode) {
 				const coord = ol.proj.toLonLat(evt.coordinate);
 				routeMarkersSource.getFeatures()
@@ -688,7 +791,7 @@
 				return;
 			}
 
-			// 2. Modalità N nearest sites — PRIMA del forEachFeatureAtPixel
+			// N nearest sites — BEFORE forEachFeatureAtPixel
 			if (modes.queryNearest.active) {
 				const coord = ol.proj.toLonLat(evt.coordinate);
 				const nRaw = parseInt(document.getElementById('nearest-n').value) || 3;
@@ -700,13 +803,11 @@
 					queryHighlightSource.clear();
 					const fmt = new ol.format.WKT();
 
-					// Marker punto cliccato
 					const clickMarker = new ol.Feature({ geometry: new ol.geom.Point(evt.coordinate) });
 					clickMarker.set('clickMarker', true);
 					queryHighlightSource.addFeature(clickMarker);
 
-					// Cap: se la API ritorna meno del richiesto, usa quanti ne ha
-					const actual = sites.length;   // ≤ n
+					const actual = sites.length;
 
 					sites.forEach((s, i) => {
 						const geoKey = Object.keys(s).find(k => k.toLowerCase() === 'geometry' || k.toLowerCase() === 'wkt');
@@ -718,7 +819,6 @@
 							featureProjection: 'EPSG:3857'
 						});
 
-						// ← Escludi 'geometry' per non sovrascrivere la geometria OL con la stringa WKT
 						const { geometry, Geometry, ...propsWithoutGeom } = s;
 						f.setProperties(propsWithoutGeom);
 
@@ -959,6 +1059,29 @@
 
 		// ── CANALS ──────────────────────────────────────────────────────────
 
+		// SNAP CANALS: connect endpoints to existing canals
+		function snapCanalEndpoints(coords) {
+			const SNAP_TOLERANCE_M = 15; // meters in EPSG:3857 projection
+			let start = [...coords[0]];
+			let end   = [...coords[coords.length - 1]];
+
+			canalsSource.getFeatures().forEach(function(feat) {
+				const pts = feat.getGeometry().getCoordinates();
+				const candidates = [pts[0], pts[pts.length - 1]];
+				candidates.forEach(function(pt) {
+					const dStart = Math.hypot(pt[0] - start[0], pt[1] - start[1]);
+					const dEnd   = Math.hypot(pt[0] - end[0],   pt[1] - end[1]);
+					if (dStart < SNAP_TOLERANCE_M) start = [...pt];
+					if (dEnd   < SNAP_TOLERANCE_M) end   = [...pt];
+				});
+			});
+
+			const snapped = [...coords];
+			snapped[0]                = start;
+			snapped[snapped.length - 1] = end;
+			return snapped;
+		}
+
 		// Disegna nuova linestring canale
 		function startDrawCanal() {
 			
@@ -972,6 +1095,10 @@
 			drawCanal = new ol.interaction.Draw({ source: drawSource, type: 'LineString' });
 
 			drawCanal.on('drawend', function(evt) {
+				const geom   = evt.feature.getGeometry();
+				// SNAP before saving
+				const snappedCoords = snapCanalEndpoints(geom.getCoordinates());
+				geom.setCoordinates(snappedCoords);
 				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
 					dataProjection: 'EPSG:4326',
 					featureProjection: 'EPSG:3857'
@@ -1142,13 +1269,12 @@
 				return true;
 			});
 
-			const activeAssets = allAssets.filter(a => {
-				return isChecked('filter-asset-' + a.assetType);
-			});
+			const activeAssets = allAssets.filter(a => isChecked('filter-asset-' + a.assetType));
 
-			const activeCanals = allCanals.filter(() => {
-			return isChecked('filter-canals-visible');
-			});
+			const activeCanals = allCanals.filter(() => isChecked('filter-canals-visible'));
+
+			const activeWalls = allWalls.filter(() => isChecked('filter-walls-visible'));
+
 
 			// Update sources
 			sitesSource.clear();
@@ -1161,7 +1287,7 @@
 			assetsSource.addFeatures(parseFeatures(activeAssets));
 			affectedRoadsSource.addFeatures(parseFeatures(activeRoads));
 			canalsSource.addFeatures(parseFeatures(activeCanals));
-			wallsSource.addFeatures(parseFeatures(allWalls));
+			wallsSource.addFeatures(parseFeatures(activeWalls));
 
 
 			// Update counters
@@ -1328,6 +1454,17 @@
 
 		// ── SISTEMA TOGGLE UNIFICATO ─────────────────────────────────────────────
 		const modes = {
+			canalSelect: {
+				active: false,
+				btnId: 'btn-canal-select',
+				onText: '🖱️ Selecting… click to stop',
+				offText: '🖱️ Select canals',
+				onStyle:  { background: '#1a80e5', color: '#fff', border: '1px solid #1a80e5' },
+				offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #1a80e5' },
+				cursor: 'crosshair',
+				onActivate: null,
+				onDeactivate: null
+			},
 			editWall: {
 				active:  false,
 				btnId:   'btn-edit-wall',
@@ -1845,7 +1982,128 @@
 			document.getElementById('btn-clear-tour').style.display = 'none';
 		}
 
+				// ── Cable Planning ──────────────────────────────────────────
+		let selectedCanalIds = new Set();
+		let cablePlanHighlightSource = new ol.source.Vector();
+		const cablePlanHighlightLayer = new ol.layer.Vector({
+			source: cablePlanHighlightSource,
+			style: new ol.style.Style({
+				stroke: new ol.style.Stroke({ color: '#e8af34', width: 6 })
+			}),
+			zIndex: 9
+		});
+		map.addLayer(cablePlanHighlightLayer);
+
+		let cablePlanMode = false;
+
+		function toggleCanalSelectMode() { activateMode('canalSelect'); }
+
+		function refreshCanalSelectionHighlight() {
+			cablePlanHighlightSource.clear();
+			let totalM = 0;
+			canalsSource.getFeatures().forEach(f => {
+				if (selectedCanalIds.has(f.get('id'))) {
+					cablePlanHighlightSource.addFeature(f.clone());
+					// approximative length in 3857
+					const coords = f.getGeometry().getCoordinates();
+					for (let i = 1; i < coords.length; i++) {
+						const dx = coords[i][0] - coords[i-1][0];
+						const dy = coords[i][1] - coords[i-1][1];
+						totalM += Math.sqrt(dx*dx + dy*dy);
+					}
+				}
+			});
+			const info = document.getElementById('cable-selected-info');
+			if (selectedCanalIds.size > 0) {
+				info.style.display = 'block';
+				document.getElementById('cable-sel-count').textContent = selectedCanalIds.size;
+				document.getElementById('cable-sel-meters').textContent = Math.round(totalM);
+			} else {
+				info.style.display = 'none';
+			}
+		}
+
+		async function calculateCablePlan() {
+			if (selectedCanalIds.size === 0) {
+				alert('Select at least one canal by clicking on the map.');
+				return;
+			}
+			const ids = Array.from(selectedCanalIds).join(',');
+			try {
+				const res = await fetch(`/api/cablecalculator/calculate?canalIds=${ids}`);
+				if (!res.ok) throw new Error(await res.text());
+				const plan = await res.json();
+				renderCablePlan(plan);
+				selectedCanalIds.clear();
+				cablePlanHighlightSource.clear();
+				document.getElementById('cable-selected-info').style.display = 'none';
+				deactivateMode('canalSelect');
+			} catch(e) {
+				alert('Error: ' + e.message);
+			}
+		}
+
+		function renderCablePlan(plan) {
+			document.getElementById('cr-meters').textContent    = plan.totalCableMeters.toFixed(1) + ' m';
+			document.getElementById('cr-segments').textContent  = plan.utpSegmentsCount;
+			document.getElementById('cr-nodes').textContent     = plan.nodesNeeded;
+			document.getElementById('cr-time').textContent      = formatCableTime(plan.totalWorkTimeMin);
+
+			const rd = document.getElementById('cr-route-detail');
+			rd.innerHTML = '';
+			plan.route.forEach(seg => {
+				const div = document.createElement('div');
+				div.style.cssText = 'background:#0d1b2a;border:1px solid #2a3a5e;border-radius:5px;padding:5px 8px;font-size:0.75rem;color:#ccc';
+				const nodes = plan.nodePoints.filter(n => n.canalId === seg.canalId).length;
+				div.innerHTML = `<span style="color:#4f98a3;font-weight:600">Canal ${seg.canalId}</span>
+								 ${seg.lengthM.toFixed(1)} m
+								 ${nodes > 0 ? `<span style="color:#e8af34">${nodes} node${nodes > 1 ? 's' : ''}</span>` : ''}`;
+				rd.appendChild(div);
+			});
+
+			const wd = document.getElementById('cr-walls');
+			wd.innerHTML = '';
+			const allWalls = plan.route.flatMap(s => s.walls);
+			if (allWalls.length === 0) {
+				wd.innerHTML = '<div style="font-size:0.75rem;color:#888">No walls intersected.</div>';
+			} else {
+				allWalls.forEach(w => {
+					const div = document.createElement('div');
+					div.style.cssText = 'background:#0d1b2a;border:1px solid #2a3a5e;border-radius:5px;padding:5px 8px;font-size:0.75rem;color:#ccc';
+					div.innerHTML = `Wall ${w.wallId} <span style="background:#546e7a;color:#fff;border-radius:3px;padding:1px 5px;font-size:0.7rem">${w.material}</span> ${w.thicknessCm} cm <span style="color:#fdab43">${w.drillingTimeMin} min</span>`;
+					wd.appendChild(div);
+				});
+			}
+
+			document.getElementById('cable-results').style.display = 'flex';
+
+			cableNodesSource.clear();
+			plan.nodePoints.forEach(node => {
+				const feature = new ol.Feature({
+					geometry:  new ol.geom.Point(ol.proj.fromLonLat([node.lon, node.lat])),
+					nodeIndex: node.nodeIndex,
+					canalId:   node.canalId
+				});
+				cableNodesSource.addFeature(feature);
+			});
+		}
+
+		function clearCablePlan() {
+			selectedCanalIds.clear();
+			cablePlanHighlightSource.clear();
+			cableNodesSource.clear();
+			document.getElementById('cable-selected-info').style.display = 'none';
+			document.getElementById('cable-results').style.display = 'none';
+		}
+
+		function formatCableTime(mins) {
+			if (!mins) return '0 min';
+			if (mins < 60) return mins + ' min';
+			return Math.floor(mins/60) + 'h ' + (mins % 60) + 'min';
+		}
+
 		loadAllData();
+
 
 	</script>
 

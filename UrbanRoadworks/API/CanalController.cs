@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
+using Npgsql;
 using UrbanRoadworks.Data;
 using UrbanRoadworks.Models;
 using UrbanRoadworks.Models.DTOs;
@@ -9,9 +10,10 @@ namespace UrbanRoadworks.API
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class CanalController(ApplicationDbContext context) : ControllerBase
+    public class CanalController(ApplicationDbContext context, IConfiguration configuration) : ControllerBase
     {
         private readonly ApplicationDbContext _context = context;
+        private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
         [HttpGet("canals")]
         public IActionResult GetCanals([FromQuery] string? status = null)
@@ -83,6 +85,62 @@ namespace UrbanRoadworks.API
             _context.Canals.Remove(canal);
             _context.SaveChanges();
             return Ok();
+        }
+        // GET /api/canal/topology
+        // Restituisce le coppie di canali connessi (entro 0.5 m) — utile per debug
+        [HttpGet("topology")]
+        public async Task<IActionResult> GetTopology()
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            const string sql = @"
+                    SELECT
+                        a.id                                            AS canal_a,
+                        b.id                                            AS canal_b,
+                        a.from_site,
+                        a.to_site,
+                        b.from_site                                     AS b_from_site,
+                        b.to_site                                       AS b_to_site,
+                        ROUND(CAST(
+                            ST_Distance(
+                                ST_Transform(a.geometry, 3857),
+                                ST_Transform(b.geometry, 3857)
+                            ) AS numeric
+                        ), 3)                                           AS distance_m
+                    FROM canals a
+                    JOIN canals b ON a.id < b.id
+                    WHERE ST_DWithin(
+                        ST_Transform(a.geometry, 3857),
+                        ST_Transform(b.geometry, 3857),
+                        0.5
+                    )
+                    ORDER BY distance_m";
+
+            var edges = new List<object>();
+
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                edges.Add(new
+                {
+                    CanalA = reader.GetInt32(0),
+                    CanalB = reader.GetInt32(1),
+                    FromSiteA = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2),
+                    ToSiteA = reader.IsDBNull(3) ? (int?)null : reader.GetInt32(3),
+                    FromSiteB = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
+                    ToSiteB = reader.IsDBNull(5) ? (int?)null : reader.GetInt32(5),
+                    DistanceM = reader.GetDouble(6)
+                });
+            }
+
+            return Ok(new
+            {
+                TotalConnectedPairs = edges.Count,
+                Edges = edges
+            });
         }
     }
 }
