@@ -40,16 +40,31 @@ namespace UrbanRoadworks.API
         public IActionResult CreateCanal([FromBody] CanalDto dto)
         {
             var reader = new WKTReader();
+            LineString? line = dto.Geometry != null ? (LineString)reader.Read(dto.Geometry) : null;
+
+            int? autoFromSite = null;
+            int? autoToSite = null;
+
+            if (line != null)
+            {
+                line.SRID = 4326;
+                // Calcolo automatico: trova il sito che interseca il punto di inizio e quello di fine
+                autoFromSite = _context.RoadworkSites
+                    .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(line.StartPoint))?.Id;
+
+                autoToSite = _context.RoadworkSites
+                    .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(line.EndPoint))?.Id;
+            }
+
             var canal = new Canal
             {
                 Name = dto.Name,
                 Status = dto.Status ?? "planned",
-                FromSite = dto.FromSite,
-                ToSite = dto.ToSite,
-                Geometry = dto.Geometry != null
-                    ? (LineString)reader.Read(dto.Geometry)
-                    : null
+                FromSite = autoFromSite, // Assegnato in automatico
+                ToSite = autoToSite,     // Assegnato in automatico
+                Geometry = line
             };
+
             _context.Canals.Add(canal);
             _context.SaveChanges();
             return Ok(new { canal.Id, canal.Name, canal.Status });
@@ -62,15 +77,23 @@ namespace UrbanRoadworks.API
             if (canal == null) return NotFound();
             if (dto.Geometry != null && canal.Status != "planned")
                 return BadRequest(new { error = "Geometry can only be modified for planned canals." });
+
             canal.Name = dto.Name;
             canal.Status = dto.Status;
-            canal.FromSite = dto.FromSite;
-            canal.ToSite = dto.ToSite;
 
             if (dto.Geometry != null)
             {
                 var reader = new WKTReader();
-                canal.Geometry = (LineString)reader.Read(dto.Geometry);
+                var line = (LineString)reader.Read(dto.Geometry);
+                line.SRID = 4326;
+                canal.Geometry = line;
+
+                // Ricalcolo automatico dei siti in base alla nuova geometria
+                canal.FromSite = _context.RoadworkSites
+                    .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(line.StartPoint))?.Id;
+
+                canal.ToSite = _context.RoadworkSites
+                    .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(line.EndPoint))?.Id;
             }
 
             _context.SaveChanges();

@@ -7,6 +7,7 @@ namespace UrbanRoadworks.Models
     public class Wall
     {
         [Column("id")] public int Id { get; set; }
+        [Column("name")] public string? Name { get; set; }
         [Column("site_id")] public int? SiteId { get; set; }
         [Column("thickness")] public double Thickness { get; set; }
         [Column("material")] public string? Material { get; set; }
