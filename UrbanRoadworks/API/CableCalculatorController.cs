@@ -56,6 +56,12 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
             JOIN canals c ON ST_Intersects(
                 ST_Transform(w.geometry, 3857),
                 ST_Transform(c.geometry, 3857))
+            CROSS JOIN ST_Dump(
+                ST_Intersection(
+                    ST_Transform(w.geometry, 3857), 
+                    ST_Transform(c.geometry, 3857)
+                )
+            ) AS intersection_points
             WHERE c.id = @canalId";
 
         // 3. UTP nodes with full orientation:

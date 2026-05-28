@@ -6,8 +6,8 @@ public class CablePlanDto
     public int UtpSegmentsCount { get; set; }
     public int NodesNeeded { get; set; }
     public int TotalWorkTimeMin { get; set; }
-    public List<CanalSegmentDto> Route { get; set; } = new();
-    public List<NodePointDto> NodePoints { get; set; } = new();
+    public List<CanalSegmentDto> Route { get; set; } = [];
+    public List<NodePointDto> NodePoints { get; set; } = [];
 
 }
 
@@ -17,7 +17,7 @@ public class CanalSegmentDto
     public double LengthM { get; set; }
     public int CableSegments { get; set; }
     public int IntermediateNodes { get; set; }
-    public List<WallIntersectionDto> Walls { get; set; } = new();
+    public List<WallIntersectionDto> Walls { get; set; } = [];
 }
 
 public class WallIntersectionDto

@@ -149,7 +149,7 @@ namespace UrbanRoadworks.API
                     targetNodes.TryAdd(node, siteId);
             }
 
-            if (!targetNodes.Any()) return Ok(Array.Empty<object>());
+            if (targetNodes.Count == 0) return Ok(Array.Empty<object>());
 
             var targets = string.Join(",", targetNodes.Keys);
 

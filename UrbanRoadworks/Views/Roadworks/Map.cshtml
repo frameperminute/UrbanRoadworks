@@ -325,43 +325,6 @@
 			<div>Assets: <span id="cnt-assets">–</span></div>
 			<div>Canals: <span id="cnt-canals">–</span></div>
 		</div>
-
-		<div class="divider"></div>
-
-		<!-- Legenda automatica -->
-		<div>
-			<div class="section-title">Legend</div>
-			<div id="legend">
-				<div class="legend-item">
-					<span class="dot" style="background:#ff6b6b; opacity:0.7;"></span>
-					Active sites
-				</div>
-				<div class="legend-item">
-					<span class="dot" style="background:#fdab43; opacity:0.7;"></span>
-					Planned sites
-				</div>
-				<div class="legend-item">
-					<span class="dot" style="background:#6daa45; opacity:0.7;"></span>
-					Completed sites
-				</div>
-				<div class="legend-item">
-					<span class="line-sample" style="background:#ff4444;"></span>
-					Closed roads
-				</div>
-				<div class="legend-item">
-					<span class="line-sample" style="background:#fdab43;"></span>
-					Limited-traffic roads
-				</div>
-				<div class="legend-item">
-					<span class="line-sample" style="background:#5591c7;"></span>
-					Alternative routes
-				</div>
-				<div class="legend-item">
-					<span class="line-sample" style="background:#0066cc;"></span>
-					Cable canals
-				</div>
-			</div>
-		</div>
 		<div class="divider"></div>
 		<div>
 			<div class="section-title">Options</div>
@@ -406,7 +369,7 @@
 					✏️ Edit wall
 				</button>
 				<button onclick="toggleModifyWallMode()" id="btn-modify-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					🔷 Reshape wall
+					↕️ Reshape wall
 				</button>
 				<button onclick="toggleQueryAreaMode()" id="btn-query-area"
 						style="background:#2a3a5e;color:#eee;border:1px solid #dd6974;
@@ -1074,7 +1037,7 @@
 
 		// SNAP CANALS: connect endpoints to existing canals
 		function snapCanalEndpoints(coords) {
-			const SNAP_TOLERANCE_M = 0.1;
+			const SNAP_TOLERANCE_M = 1.0;
 			let start = [...coords[0]];
 			let end   = [...coords[coords.length - 1]];
 
