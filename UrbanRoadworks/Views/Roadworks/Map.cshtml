@@ -1,2247 +1,516 @@
 ﻿@{
-	ViewData["Title"] = "Urban Roadworks Monitor";
-	Layout = null;
+    ViewData["Title"] = "Urban Roadworks Monitor";
+    Layout = null;
 }
 <!DOCTYPE html>
 <html lang="it">
 <head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>Urban Roadworks Monitor</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css" />
-	<style>
-		* {
-			margin: 0;
-			padding: 0;
-			box-sizing: border-box;
-		}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Urban Roadworks Monitor</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css" />
 
-		body {
-			font-family: 'Segoe UI', sans-serif;
-			display: flex;
-			height: 100vh;
-			overflow: hidden;
-			background: #1a1a2e;
-			color: #eee;
-		}
-
-		#sidebar {
-			width: 280px;
-			min-width: 280px;
-			background: #16213e;
-			display: flex;
-			flex-direction: column;
-			padding: 16px;
-			gap: 16px;
-			overflow-y: auto;
-			z-index: 10;
-			box-shadow: 2px 0 12px rgba(0,0,0,0.4);
-		}
-
-			#sidebar h1 {
-				font-size: 1rem;
-				font-weight: 700;
-				color: #4f98a3;
-				letter-spacing: 0.5px;
-				border-bottom: 1px solid #2a3a5e;
-				padding-bottom: 10px;
-			}
-
-		.section-title {
-			font-size: 0.7rem;
-			font-weight: 600;
-			text-transform: uppercase;
-			letter-spacing: 1px;
-			color: #4f98a3;
-			margin-bottom: 8px;
-		}
-
-		.filter-group {
-			display: flex;
-			flex-direction: column;
-			gap: 6px;
-		}
-
-			.filter-group label {
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				font-size: 0.82rem;
-				cursor: pointer;
-				padding: 5px 8px;
-				border-radius: 6px;
-				transition: background 0.15s;
-			}
-
-				.filter-group label:hover {
-					background: rgba(79,152,163,0.12);
-				}
-
-			.filter-group input[type="checkbox"] {
-				accent-color: #4f98a3;
-				width: 14px;
-				height: 14px;
-			}
-
-		.dot {
-			width: 10px;
-			height: 10px;
-			border-radius: 50%;
-			flex-shrink: 0;
-		}
-
-		.line-sample {
-			width: 22px;
-			height: 4px;
-			border-radius: 2px;
-			flex-shrink: 0;
-		}
-
-		#legend {
-			display: flex;
-			flex-direction: column;
-			gap: 6px;
-		}
-
-		.legend-item {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			font-size: 0.78rem;
-			color: #bbb;
-		}
-
-		#counter {
-			background: #0f3e44;
-			border-radius: 8px;
-			padding: 10px;
-			font-size: 0.78rem;
-			color: #9dd;
-		}
-
-			#counter div {
-				display: flex;
-				justify-content: space-between;
-				margin-bottom: 3px;
-			}
-
-			#counter span {
-				font-weight: 700;
-				color: #4f98a3;
-			}
-
-		#map {
-			flex: 1;
-			height: 100vh;
-		}
-
-		.ol-popup {
-			position: absolute;
-			background: #16213e;
-			border: 1px solid #4f98a3;
-			border-radius: 8px;
-			padding: 12px 14px;
-			min-width: 180px;
-			max-width: 240px;
-			font-size: 0.82rem;
-			color: #eee;
-			pointer-events: auto;
-			box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-		}
-
-		.popup-close {
-			position: absolute;
-			top: 6px;
-			right: 8px;
-			cursor: pointer;
-			font-size: 1rem;
-			color: #888;
-			background: none;
-			border: none;
-			line-height: 1;
-		}
-
-			.popup-close:hover {
-				color: #eee;
-			}
-
-		.ol-popup h4 {
-			font-size: 0.88rem;
-			color: #4f98a3;
-			margin-bottom: 6px;
-		}
-
-		.ol-popup p {
-			color: #bbb;
-			margin-bottom: 3px;
-		}
-
-		.badge {
-			display: inline-block;
-			padding: 2px 8px;
-			border-radius: 12px;
-			font-size: 0.72rem;
-			font-weight: 600;
-			margin-top: 4px;
-		}
-
-		.badge-active {
-			background: rgba(220,50,50,0.25);
-			color: #ff6b6b;
-		}
-
-		.badge-planned {
-			background: rgba(150,150,150,0.2);
-			color: #fdab43;
-		}
-
-		.badge-completed {
-			background: rgba(70,180,80,0.2);
-			color: #6daa45;
-		}
-
-		.divider {
-			height: 1px;
-			background: #2a3a5e;
-		}
-
-		button:disabled {
-			opacity: 0.4;
-			cursor: not-allowed !important;
-		}
-	</style>
+    <link rel="stylesheet" href="~/css/map.css" />
 </head>
 <body>
+    <div id="sidebar">
+        <h1>🏗 Urban Roadworks Monitor</h1>
 
-	<div id="sidebar">
+        <div>
+            <div class="section-title">Construction Sites</div>
+            <div class="filter-group">
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-sites-active" />
+                    <span class="dot" style="background:#ff4444;"></span>
+                    Active
+                </label>
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-sites-planned" />
+                    <span class="dot" style="background:#fdab43;"></span>
+                    Planned
+                </label>
+                <label>
+                    <input type="checkbox" onchange="applyFilters()" id="filter-sites-completed" />
+                    <span class="dot" style="background:#6daa45;"></span>
+                    Completed
+                </label>
+            </div>
+        </div>
 
-		<h1>🏗 Urban Roadworks Monitor</h1>
+        <div class="divider"></div>
 
-		<div>
-			<div class="section-title">Construction Sites</div>
-			<div class="filter-group">
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-sites-active" />
-					<span class="dot" style="background:#ff4444;"></span>
-					Active
-				</label>
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-sites-planned" />
-					<span class="dot" style="background:#fdab43;"></span>
-					Planned
-				</label>
-				<label>
-					<input type="checkbox" onchange="applyFilters()"
-						   id="filter-sites-completed" />
-					<span class="dot" style="background:#6daa45;"></span>
-					Completed
-				</label>
-			</div>
-		</div>
+        <div>
+            <div class="section-title">Roads</div>
+            <div class="filter-group">
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-roads-closed" />
+                    <span class="line-sample" style="background:#ff4444;"></span>
+                    Closed
+                </label>
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-roads-reduced" />
+                    <span class="line-sample" style="background:#fdab43;"></span>
+                    Limited traffic
+                </label>
+            </div>
+        </div>
 
-		<div class="divider"></div>
+        <div class="divider"></div>
 
-		<div>
-			<div class="section-title">Roads</div>
-			<div class="filter-group">
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-roads-closed" />
-					<span class="line-sample" style="background:#ff4444;"></span>
-					Closed
-				</label>
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-roads-reduced" />
-					<span class="line-sample" style="background:#fdab43;"></span>
-					Limited traffic
-				</label>
-			</div>
-		</div>
+        <div>
+            <div class="section-title">Assets</div>
+            <div class="filter-group">
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-asset-temporary_traffic_light" />
+                    <span class="dot" style="background:#ff4444;"></span>
+                    Temporary traffic lights
+                </label>
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-asset-warning_sign" />
+                    <span class="dot" style="background:#fdab43;"></span>
+                    Warning signs
+                </label>
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-asset-site_entrance" />
+                    <span class="dot" style="background:#6daa45;"></span>
+                    Sites entrances
+                </label>
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-asset-detour_sign" />
+                    <span class="dot" style="background:#a86fdf;"></span>
+                    Detour signs
+                </label>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div>
+            <div class="section-title">Canals</div>
+            <div class="filter-group">
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-canals-active" />
+                    <span class="line-sample" style="background:#1a80e5;"></span>
+                    Active
+                </label>
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-canals-planned" />
+                    <span class="line-sample" style="background:#5ab4f7;"></span>
+                    Planned
+                </label>
+                <label>
+                    <input type="checkbox" onchange="applyFilters()" id="filter-canals-completed" />
+                    <span class="line-sample" style="background:#4caf7d;"></span>
+                    Completed
+                </label>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="divider"></div>
+        <div>
+            <div class="section-title">Walls</div>
+            <div class="filter-group">
+                <label>
+                    <input type="checkbox" checked onchange="applyFilters()" id="filter-walls-visible" />
+                    <span class="line-sample" style="background:#90a4ae;"></span>
+                    Walls
+                </label>
+            </div>
+        </div>
+        <div class="divider"></div>
 
-		<div class="divider"></div>
-
-		<div>
-			<div class="section-title">Assets</div>
-			<div class="filter-group">
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-asset-temporary_traffic_light" />
-					<span class="dot" style="background:#ff4444;"></span>
-					Temporary traffic lights
-				</label>
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-asset-warning_sign" />
-					<span class="dot" style="background:#fdab43;"></span>
-					Warning signs
-				</label>
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-asset-site_entrance" />
-					<span class="dot" style="background:#6daa45;"></span>
-					Sites entrances
-				</label>
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-asset-detour_sign" />
-					<span class="dot" style="background:#a86fdf;"></span>
-					Detour signs
-				</label>
-			</div>
-		</div>
-		<div class="divider"></div>
-
-		<div>
-			<div class="section-title">Canals</div>
-			<div class="filter-group">
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()"
-						   id="filter-canals-visible" />
-					<span class="line-sample" style="background:#0066cc;"></span>
-					Cable canals
-				</label>
-			</div>
-		</div>
-		<div class="divider"></div>
-		<div class="divider"></div>
-		<div>
-			<div class="section-title">Walls</div>
-			<div class="filter-group">
-				<label>
-					<input type="checkbox" checked onchange="applyFilters()" id="filter-walls-visible" />
-					<span class="line-sample" style="background:#90a4ae;"></span>
-					Walls (drillable)
-				</label>
-			</div>
-		</div>
-		<div class="divider"></div>
-
-		<div id="counter">
-			<div>Sites: <span id="cnt-sites">–</span></div>
-			<div>Roads inside sites: <span id="cnt-roads">–</span></div>
-			<div>Assets: <span id="cnt-assets">–</span></div>
-			<div>Canals: <span id="cnt-canals">–</span></div>
-		</div>
-		<div class="divider"></div>
-		<div>
-			<div class="section-title">Options</div>
-			<div style="display:flex; flex-direction:column; gap:8px;">
-				<button id="btn-add" onclick="startDrawSite()" style="background:#4f98a3;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					+ New site
-				</button>
-				<button onclick="toggleEditMode()" id="btn-edit" style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					✏️ Edit site
-				</button>
-				<button onclick="toggleModifySiteMode()" id="btn-modify-site"
-						style="background:#2a3a5e;color:#eee;border:1px solid #fdab43;
-									padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					↕️ Reshape site
-				</button>
-				<button onclick="startDrawAsset()" style="background:#e8af34;color:#1a1a2e;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					+ New asset
-				</button>
-				<button onclick="toggleAssetEditMode()" id="btn-edit-asset" style="background:#2a3a5e;color:#eee;border:1px solid #e8af34;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					✏️ Edit asset
-				</button>
-				<button onclick="toggleMoveAssetMode()" id="btn-move-asset"
-						style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
+        <div id="counter">
+            <div>Sites: <span id="cnt-sites">–</span></div>
+            <div>Roads inside sites: <span id="cnt-roads">–</span></div>
+            <div>Assets: <span id="cnt-assets">–</span></div>
+            <div>Canals: <span id="cnt-canals">–</span></div>
+        </div>
+        <div class="divider"></div>
+        <div>
+            <div class="section-title">Options</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <button id="btn-add" onclick="startDrawSite()" style="background:#4f98a3;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    + New site
+                </button>
+                <button onclick="toggleEditMode()" id="btn-edit" style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ✏️ Edit site
+                </button>
+                <button onclick="toggleModifySiteMode()" id="btn-modify-site"
+                        style="background:#2a3a5e;color:#eee;border:1px solid #fdab43;
+                                    padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ↕️ Reshape site
+                </button>
+                <button onclick="startDrawAsset()" style="background:#e8af34;color:#1a1a2e;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    + New asset
+                </button>
+                <button onclick="toggleAssetEditMode()" id="btn-edit-asset" style="background:#2a3a5e;color:#eee;border:1px solid #e8af34;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ✏️ Edit asset
+                </button>
+                <button onclick="toggleMoveAssetMode()" id="btn-move-asset"
+                        style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
                padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					↕️ Move asset
-				</button>
-				<button onclick="startDrawCanal()" style="background:#0d3d6b;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					+ New canal
-				</button>
-				<button onclick="toggleCanalEditMode()" id="btn-edit-canal" style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					✏️ Edit canal
-				</button>
-				<button onclick="toggleModifyCanalMode()" id="btn-modify-canal"
-						style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;
-									padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					↕️ Reshape canal
-				</button>
-				<button onclick="startDrawWall()" style="background:#546e7a;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					+ New wall
-				</button>
-				<button onclick="toggleWallEditMode()" id="btn-edit-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					✏️ Edit wall
-				</button>
-				<button onclick="toggleModifyWallMode()" id="btn-modify-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					↕️ Reshape wall
-				</button>
-				<button onclick="toggleQueryAreaMode()" id="btn-query-area"
-						style="background:#2a3a5e;color:#eee;border:1px solid #dd6974;
-								padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					🔲 Query area
-				</button>
-				<button onclick="clearQueryArea()" id="btn-clear-query"
-						style="display:none;background:#2a3a5e;color:#888;border:none;
-								padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;">
-					✕ Clear selection
-				</button>
-				<div style="display:flex;gap:6px;align-items:center">
-					<button onclick="toggleNearestMode()" id="btn-query-nearest"
-							style="flex:1;background:#2a3a5e;color:#eee;border:1px solid #dd6974;
-									padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-						N nearest sites
-					</button>
-					<input type="number" id="nearest-n" min="1" max="50" value="3"
-						   style="width:52px;background:#0d1b2a;border:1px solid #dd6974;color:#eee;
-									padding:7px 6px;border-radius:5px;font-size:0.82rem;text-align:center;" />
-				</div>
-				<div id="query-info" style="display:none;background:#0f3e44;border-radius:6px;
-								padding:8px;font-size:0.75rem;color:#9dd;"></div>
-				<div class="divider"></div>
-				<div>
-					<div class="section-title">UTP Cable Planning</div>
-					<button onclick="toggleCanalSelectMode()" id="btn-canal-select"
-							style="width:100%; background:#2a3a5e; color:#eee; border:1px solid #1a80e5;
-								padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem;">
-						🖱️ Select canals
-					</button>
-					<div id="cable-panel-body" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-						<p style="font-size:0.75rem; color:#888;">
-							Click canals on the map to select them, then calculate.
-						</p>
-						<div id="cable-selected-info"
-							 style="background:#0d1b2a; border:1px solid #2a3a5e; border-radius:5px;
+                    ↕️ Move asset
+                </button>
+                <button onclick="startDrawCanal()" style="background:#0d3d6b;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    + New canal
+                </button>
+                <button onclick="toggleCanalEditMode()" id="btn-edit-canal" style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ✏️ Edit canal
+                </button>
+                <button onclick="toggleModifyCanalMode()" id="btn-modify-canal"
+                        style="background:#2a3a5e;color:#eee;border:1px solid #0066cc;
+                                    padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ↕️ Reshape canal
+                </button>
+                <button onclick="startDrawWall()" style="background:#546e7a;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    + New wall
+                </button>
+                <button onclick="toggleWallEditMode()" id="btn-edit-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ✏️ Edit wall
+                </button>
+                <button onclick="toggleModifyWallMode()" id="btn-modify-wall" style="background:#2a3a5e;color:#eee;border:1px solid #78909c;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    ↕️ Reshape wall
+                </button>
+                <button onclick="toggleQueryAreaMode()" id="btn-query-area"
+                        style="background:#2a3a5e;color:#eee;border:1px solid #dd6974;
+                                padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                    🔲 Query area
+                </button>
+                <button onclick="clearQueryArea()" id="btn-clear-query"
+                        style="display:none;background:#2a3a5e;color:#888;border:none;
+                                padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;">
+                    ✕ Clear selection
+                </button>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <button onclick="toggleNearestMode()" id="btn-query-nearest"
+                            style="flex:1;background:#2a3a5e;color:#eee;border:1px solid #dd6974;
+                                    padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
+                        N nearest sites
+                    </button>
+                    <input type="number" id="nearest-n" min="1" max="50" value="3"
+                           style="width:52px;background:#0d1b2a;border:1px solid #dd6974;color:#eee;
+                                    padding:7px 6px;border-radius:5px;font-size:0.82rem;text-align:center;" />
+                </div>
+                <div id="query-info" style="display:none;background:#0f3e44;border-radius:6px;
+                                padding:8px;font-size:0.75rem;color:#9dd;"></div>
+                <div class="divider"></div>
+                <div>
+                    <div class="section-title">UTP Cable Planning</div>
+                    <button onclick="toggleCanalSelectMode()" id="btn-canal-select"
+                            style="width:100%; background:#2a3a5e; color:#eee; border:1px solid #1a80e5;
+                                padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem;">
+                        🖱️ Select canals
+                    </button>
+                    <div id="cable-panel-body" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+                        <p style="font-size:0.75rem; color:#888;">
+                            Click canals on the map to select them, then calculate.
+                        </p>
+                        <div id="cable-selected-info"
+                             style="background:#0d1b2a; border:1px solid #2a3a5e; border-radius:5px;
                     padding:6px 8px; font-size:0.75rem; color:#9dd; display:none;">
-							<span id="cable-sel-count">0</span> canal(s) selected —
-							<span id="cable-sel-meters">0</span> m total
-						</div>
-						<div style="display:flex; gap:6px;">
-							<button onclick="calculateCablePlan()" id="btn-cable-calc"
-									style="flex:1; background:#4f98a3; color:#fff; border:none;
+                            <span id="cable-sel-count">0</span> canal(s) selected —
+                            <span id="cable-sel-meters">0</span> m total
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="calculateCablePlan()" id="btn-cable-calc"
+                                    style="flex:1; background:#4f98a3; color:#fff; border:none;
                            padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem;">
-								⚙️ Calculate
-							</button>
-							<button onclick="clearCablePlan()" id="btn-cable-clear"
-									style="background:#2a3a5e; color:#888; border:none;
+                                ⚙️ Calculate
+                            </button>
+                            <button onclick="clearCablePlan()" id="btn-cable-clear"
+                                    style="background:#2a3a5e; color:#888; border:none;
                            padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.78rem;">
-								✕
-							</button>
-						</div>
+                                ✕
+                            </button>
+                        </div>
 
-						<div id="cable-results" style="display:none; flex-direction:column; gap:6px;">
-							<div style="height:1px; background:#2a3a5e;"></div>
-							<div style="background:#0f3e44; border-radius:6px; padding:8px;
+                        <div id="cable-results" style="display:none; flex-direction:column; gap:6px;">
+                            <div style="height:1px; background:#2a3a5e;"></div>
+                            <div style="background:#0f3e44; border-radius:6px; padding:8px;
                         font-size:0.75rem; color:#9dd; display:flex; flex-direction:column; gap:3px;">
-								<div style="display:flex; justify-content:space-between;">
-									<span>🔌 Total cable</span>
-									<span id="cr-meters" style="font-weight:700; color:#4f98a3;">—</span>
-								</div>
-								<div style="display:flex; justify-content:space-between;">
-									<span>📦 UTP segments (100m)</span>
-									<span id="cr-segments" style="font-weight:700; color:#4f98a3;">—</span>
-								</div>
-								<div style="display:flex; justify-content:space-between;">
-									<span>🔀 Nodes needed</span>
-									<span id="cr-nodes" style="font-weight:700; color:#4f98a3;">—</span>
-								</div>
-								<div style="display:flex; justify-content:space-between;">
-									<span>⏱️ Est. work time</span>
-									<span id="cr-time" style="font-weight:700; color:#4f98a3;">—</span>
-								</div>
-							</div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>🔌 Total cable</span>
+                                    <span id="cr-meters" style="font-weight:700; color:#4f98a3;">—</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>📦 UTP segments (100m)</span>
+                                    <span id="cr-segments" style="font-weight:700; color:#4f98a3;">—</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>🔀 Nodes needed</span>
+                                    <span id="cr-nodes" style="font-weight:700; color:#4f98a3;">—</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>⏱️ Est. work time</span>
+                                    <span id="cr-time" style="font-weight:700; color:#4f98a3;">—</span>
+                                </div>
+                            </div>
 
-							<div style="font-size:0.7rem; font-weight:600; text-transform:uppercase;
+                            <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase;
                         letter-spacing:1px; color:#4f98a3;">
-								Segments
-							</div>
-							<div id="cr-route-detail" style="display:flex; flex-direction:column; gap:3px;"></div>
+                                Segments
+                            </div>
+                            <div id="cr-route-detail" style="display:flex; flex-direction:column; gap:3px;"></div>
 
-							<div style="font-size:0.7rem; font-weight:600; text-transform:uppercase;
+                            <div style="font-size:0.7rem; font-weight:600; text-transform:uppercase;
                         letter-spacing:1px; color:#4f98a3;">
-								Walls to drill
-							</div>
-							<div id="cr-walls" style="display:flex; flex-direction:column; gap:3px;"></div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-		<div class="divider"></div>
-		<div>
-			<div class="section-title">Driver navigation</div>
-			<div style="display:flex;flex-direction:column;gap:8px;">
-				<button onclick="startPickPoint('from')" id="btn-pick-from"
-						style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
+                                Walls to drill
+                            </div>
+                            <div id="cr-walls" style="display:flex; flex-direction:column; gap:3px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div>
+            <div class="section-title">Driver navigation</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <button onclick="startPickPoint('from')" id="btn-pick-from"
+                        style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
             padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					📍 Select starting point
-				</button>
-				<button onclick="startPickPoint('to')" id="btn-pick-to" disabled
-						style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
+                    📍 Select starting point
+                </button>
+                <button onclick="startPickPoint('to')" id="btn-pick-to" disabled
+                        style="background:#2a3a5e;color:#eee;border:1px solid #4f98a3;
             padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					🏁 Select destination
-				</button>
-				<button onclick="calculateRouteAB()" id="btn-route"
-						style="background:#4f98a3;color:#fff;border:none;
+                    🏁 Select destination
+                </button>
+                <button onclick="calculateRouteAB()" id="btn-route"
+                        style="background:#4f98a3;color:#fff;border:none;
             padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;display:none;">
-					🗺 Calculate route
-				</button>
-				<button onclick="clearRoute()"
-						style="background:#2a3a5e;color:#888;border:none;
+                    🗺 Calculate route
+                </button>
+                <button onclick="clearRoute()"
+                        style="background:#2a3a5e;color:#888;border:none;
             padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;display:none;"
-						id="btn-clear-route">
-					✕ Delete route
-				</button>
-				<div id="route-info" style="font-size:0.75rem;color:#9dd;display:none;
+                        id="btn-clear-route">
+                    ✕ Delete route
+                </button>
+                <div id="route-info" style="font-size:0.75rem;color:#9dd;display:none;
             background:#0f3e44;padding:8px;border-radius:6px;"></div>
-			</div>
-		</div>
-		<div class="divider"></div>
-		<div>
-			<div class="section-title">Inspector navigation</div>
-			<div style="display:flex;flex-direction:column;gap:8px;">
-				<div style="font-size:0.75rem;color:#888;">Starting site:</div>
-				<select id="inspector-start"
-						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div>
+            <div class="section-title">Inspector navigation</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="font-size:0.75rem;color:#888;">Starting site:</div>
+                <select id="inspector-start"
+                        style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
             padding:7px 10px;border-radius:5px;font-size:0.82rem;">
-					<option value="">— select —</option>
-				</select>
-				<div style="font-size:0.75rem;color:#888;">Sites to visit:</div>
-				<div id="inspector-sites-list" style="display:flex;flex-direction:column;gap:4px;
+                    <option value="">— select —</option>
+                </select>
+                <div style="font-size:0.75rem;color:#888;">Sites to visit:</div>
+                <div id="inspector-sites-list" style="display:flex;flex-direction:column;gap:4px;
             max-height:140px;overflow-y:auto;"></div>
-				<button onclick="calculateInspectorTour()"
-						style="background:#a86fdf;color:#fff;border:none;
+                <button onclick="calculateInspectorTour()"
+                        style="background:#a86fdf;color:#fff;border:none;
             padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;">
-					🔍 Compute optimal tour
-				</button>
-				<button onclick="clearInspectorTour()" id="btn-clear-tour"
-						style="background:#2a3a5e;color:#888;border:none;
+                    🔍 Compute optimal tour
+                </button>
+                <button onclick="clearInspectorTour()" id="btn-clear-tour"
+                        style="background:#2a3a5e;color:#888;border:none;
             padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;display:none;">
-					✕ Delete tour
-				</button>
-				<div id="tour-info" style="font-size:0.75rem;color:#9dd;display:none;
+                    ✕ Delete tour
+                </button>
+                <div id="tour-info" style="font-size:0.75rem;color:#9dd;display:none;
             background:#0f3e44;padding:8px;border-radius:6px;"></div>
-			</div>
-		</div>
-	</div>
+            </div>
+        </div>
+    </div>
 
-	<div id="map"></div>
+    <div id="map"></div>
 
-	<div id="popup" class="ol-popup" style="display:none;"></div>
+    <div id="popup" class="ol-popup" style="display:none;"></div>
 
-	<script src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"></script>
-	<script>
+    <script src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"></script>
+    <script src="~/js/map-core.js"></script>
+    <script src="~/js/api-client.js"></script>
+    <script src="~/js/map-tools.js"></script>
+    <script src="~/js/app.js"></script>
 
-		let allSites  = [];
-		let allAssets = [];
-		let allAffectedRoads = [];
-		let allCanals = [];
-		let allWalls = [];
-		let drawWall = null;		
-		let drawSite = null;
-		let drawAsset = null;
-		let drawCanal = null;
-		let translateInteraction = null;
-		let modifySiteInteraction  = null;
-		let modifyCanalInteraction = null;
-		let modifyWallInteraction = null;
-		let dragBoxInteraction = null;
-
-		const cableNodesSource = new ol.source.Vector();
-		const cableNodesLayer = new ol.layer.Vector({
-			source: cableNodesSource,
-			style: function(feature) {
-				const nodeIndex = feature.get('nodeIndex');
-				return new ol.style.Style({
-					image: new ol.style.Circle({
-						radius: 9,
-						fill: new ol.style.Fill({ color: 'rgba(232,175,52,0.9)' }),
-						stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
-					}),
-					text: new ol.style.Text({
-						text: 'N' + nodeIndex,
-						fill: new ol.style.Fill({ color: '#1a1a2e' }),
-						font: 'bold 9px sans-serif',
-						offsetY: 1
-					})
-				});
-			},
-			zIndex: 11
-		});
-
-		const sitesSource  = new ol.source.Vector();
-		const assetsSource = new ol.source.Vector();
-		const affectedRoadsSource = new ol.source.Vector();
-		const networkSource = new ol.source.Vector();
-		const canalsSource = new ol.source.Vector();
-		const queryHighlightSource = new ol.source.Vector();
-		const wallsSource = new ol.source.Vector();
-
-		const wallsLayer = new ol.layer.Vector({
-			source: wallsSource,
-			style: function(feature) {
-				const thickness = feature.get('thickness') || 10;
-				// 5–30cm → larghezza linea 2–10px
-				const lineWidth = Math.max(2, Math.min(10, thickness / 3));
-				const material = feature.get('material');
-				const colors = {
-					concrete:  '#b0bec5',
-					brick:     '#ef9a9a',
-					drywall:   '#fff9c4',
-					stone:     '#a1887f'
-				};
-				return new ol.style.Style({
-					stroke: new ol.style.Stroke({
-						color: colors[material] || '#e0e0e0',
-						width: lineWidth
-					})
-				});
-			},
-			zIndex: 5
-		});
-
-		const queryHighlightLayer  = new ol.layer.Vector({
-			source: queryHighlightSource,
-			style: function(feature) {
-				const geomType = feature.getGeometry().getType();
-				if (geomType === 'Point') {
-					return new ol.style.Style({
-						image: new ol.style.Circle({
-							radius: 12,
-							fill:   new ol.style.Fill({ color: 'rgba(232,175,52,0.5)' }),
-							stroke: new ol.style.Stroke({ color: '#e8af34', width: 3 })
-						})
-					});
-				}
-				if (geomType === 'LineString') {
-					return new ol.style.Style({
-						stroke: new ol.style.Stroke({ color: '#e8af34', width: 6 })
-					});
-				}
-				return new ol.style.Style({
-					fill:   new ol.style.Fill({ color: 'rgba(232,175,52,0.25)' }),
-					stroke: new ol.style.Stroke({ color: '#e8af34', width: 3 })
-				});
-			},
-			zIndex: 8
-		});
-
-		const canalsLayer  = new ol.layer.Vector({
-			source: canalsSource,
-			style: new ol.style.Style({
-				stroke: new ol.style.Stroke({ color: '#1a80e5', width: 4 })
-			}),
-			zIndex: 2
-		});
-
-		const networkLayer = new ol.layer.Vector({
-			source: networkSource,
-			style: new ol.style.Style({
-				stroke: new ol.style.Stroke({ color: '#555', width: 1 })
-			}),
-			zIndex: 0
-		});
-
-		function siteStyle(feature) {
-			const status = feature.get('status');
-			const colors = {
-				active:    { fill: 'rgba(255,107,107,0.25)', stroke: '#ff4444' },
-				planned:   { fill: 'rgba(150,150,150,0.2)',  stroke: '#fdab43' },
-				completed: { fill: 'rgba(109,170,69,0.2)',   stroke: '#6daa45' }
-			};
-			const c = colors[status] || colors.planned;
-			return new ol.style.Style({
-				fill:   new ol.style.Fill({ color: c.fill }),
-				stroke: new ol.style.Stroke({ color: c.stroke, width: 2 })
-			});
-		}
-
-		function roadStyle(feature) {
-			const status = feature.get('siteStatus');
-			const colors = {
-				active:  { color: '#ff4444', width: 4 },
-				planned: { color: '#fdab43', width: 3 }
-			};
-			const c = colors[status] || { color: '#888', width: 2 };
-			return new ol.style.Style({
-				stroke: new ol.style.Stroke({ color: c.color, width: c.width })
-			});
-		}
-
-		function assetStyle(feature) {
-			const type = feature.get('assetType');
-			const colors = {
-				temporary_traffic_light: '#ff4444',
-				warning_sign:            '#fdab43',
-				site_entrance:           '#6daa45',
-				detour_sign:             '#a86fdf'
-			};
-			const color = colors[type] || '#aaa';
-			return new ol.style.Style({
-				image: new ol.style.Circle({
-					radius: 8,
-					fill:   new ol.style.Fill({ color }),
-					stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 })
-				})
-			});
-		}
-
-		const sitesLayer  = new ol.layer.Vector({ source: sitesSource,  style: siteStyle,  zIndex: 1 });
-		const assetsLayer = new ol.layer.Vector({ source: assetsSource, style: assetStyle, zIndex: 3 });
-				const affectedRoadsLayer = new ol.layer.Vector({
-			source: affectedRoadsSource,
-			style: function(feature) {
-				const status = feature.get('siteStatus');
-				return new ol.style.Style({
-					stroke: new ol.style.Stroke({
-						color: status === 'active' ? '#ff4444' : '#fdab43',
-						width: 4,
-						lineDash: [8, 4]
-					})
-				});
-			},
-			zIndex: 4
-		});
-
-		const map = new ol.Map({
-			target: 'map',
-			layers: [
-				new ol.layer.Tile({ source: new ol.source.OSM() }),
-				networkLayer,
-				canalsLayer,
-				wallsLayer,
-				sitesLayer,
-				assetsLayer,
-				affectedRoadsLayer,
-				queryHighlightLayer,
-				cableNodesLayer
-			],
-			view: new ol.View({
-				center: ol.proj.fromLonLat([13.0680, 43.1360]),
-				zoom: 15
-			})
-		});
-
-		const popup = document.getElementById('popup');
-		map.on('click', async function(evt) {
-			if (modes.canalSelect && modes.canalSelect.active) {
-				const feature = map.forEachFeatureAtPixel(evt.pixel, f => f, {
-					layerFilter: l => l === canalsLayer
-				});
-				if (feature && feature.get('id')) {
-					const id = feature.get('id');
-					if (selectedCanalIds.has(id)) selectedCanalIds.delete(id);
-					else selectedCanalIds.add(id);
-					refreshCanalSelectionHighlight();
-				}
-				return;
-			}
-		    // navigation A -> B
-			if (pickMode) {
-				const coord = ol.proj.toLonLat(evt.coordinate);
-				routeMarkersSource.getFeatures()
-					.filter(f => f.get('pointType') === pickMode)
-					.forEach(f => routeMarkersSource.removeFeature(f));
-				const marker = new ol.Feature({ geometry: new ol.geom.Point(evt.coordinate) });
-				marker.set('pointType', pickMode);
-				routeMarkersSource.addFeature(marker);
-				if (pickMode === 'from') {
-					routeFrom = coord;
-					document.getElementById('btn-pick-from').style.background = '#2a3a5e';
-					document.getElementById('btn-pick-to').disabled = false;
-				} else {
-					routeTo = coord;
-					document.getElementById('btn-pick-to').style.background = '#2a3a5e';
-				}
-				pickMode = null;
-				map.getTargetElement().style.cursor = '';
-				if (routeFrom && routeTo) document.getElementById('btn-route').style.display = 'block';
-				return;
-			}
-
-			// N nearest sites — BEFORE forEachFeatureAtPixel
-			if (modes.queryNearest.active) {
-				const coord = ol.proj.toLonLat(evt.coordinate);
-				const nRaw = parseInt(document.getElementById('nearest-n').value) || 3;
-				const n = Math.max(1, Math.min(nRaw, 50));   // clamp 1–50
-				deactivateMode('queryNearest');
-				try {
-					const r = await fetch(`/api/site/nearest-by-road?lon=${coord[0]}&lat=${coord[1]}&n=${n}`);
-					const sites = await r.json();
-					queryHighlightSource.clear();
-					const fmt = new ol.format.WKT();
-
-					const clickMarker = new ol.Feature({ geometry: new ol.geom.Point(evt.coordinate) });
-					clickMarker.set('clickMarker', true);
-					queryHighlightSource.addFeature(clickMarker);
-
-					const actual = sites.length;
-
-					sites.forEach((s, i) => {
-						const geoKey = Object.keys(s).find(k => k.toLowerCase() === 'geometry' || k.toLowerCase() === 'wkt');
-						const geoValue = geoKey ? s[geoKey] : null;
-						if (!geoValue) return;
-
-						const f = fmt.readFeature(geoValue, {
-							dataProjection: 'EPSG:4326',
-							featureProjection: 'EPSG:3857'
-						});
-
-						const { geometry, Geometry, ...propsWithoutGeom } = s;
-						f.setProperties(propsWithoutGeom);
-
-						queryHighlightSource.addFeature(f);
-
-						const centroid = ol.extent.getCenter(f.getGeometry().getExtent());
-						const line = new ol.Feature({ geometry: new ol.geom.LineString([evt.coordinate, centroid]) });
-						line.set('connectLine', true);
-						line.set('rank', i + 1);
-						queryHighlightSource.addFeature(line);
-					});
-
-					const info = document.getElementById('query-info');
-					info.style.display = 'block';
-					const heading = actual < n
-						? `<b>${actual} nearest sites</b> (max available)<br>`
-						: `<b>${actual} nearest sites</b><br>`;
-					info.innerHTML = heading + sites.map((s, i) => {
-						const dist = (s.roadDistanceMeters / 1000).toFixed(2);
-						return `<div><i>${i+1}.</i> <b>${s.name || s.id}</b> — ${dist} km road</div>`;
-					}).join('');
-					document.getElementById('btn-clear-query').style.display = 'block';
-				} catch(e) {
-					console.error('Nearest sites error:', e);
-				}
-				return;
-			}
-			// popup feature
-			const feature = map.forEachFeatureAtPixel(evt.pixel, f => f);
-			if (feature) {
-				const props = feature.getProperties();
-				let html = '';
-				if (modes.editSite.active  && props.id && props.status && !props.assetType) {
-					openEditPanel(props);      
-					return; 
-				}
-				if (modes.editAsset.active && props.id && props.assetType) { 
-					openAssetEditPanel(props);  
-					return; 
-				}
-				if (modes.editCanal.active && props.id && props.status && !props.assetType && !props.siteStatus) { 
-					openCanalEditPanel(props);  
-					return; 
-				}
-				if (modes.editWall.active && props.id && props.thickness !== undefined) {
-					openWallEditPanel(props);
-					return;
-				}
-				if (props.thickness !== undefined) {
-					const labels = {
-						concrete: '🔘 Concrete',
-						brick:    '🧱 Brick',
-						drywall:  '📋 Drywall',
-						stone:    '🪨 Stone'
-					};
-					const matLabel = labels[props.material] || props.material;
-					const title = props.name || 'Unnamed Wall';
-
-					html = `<h4>${title}</h4>
-							<p style="margin-top:6px; color:#ccc;">Material: <b style="color:#fff;">${matLabel}</b></p>
-							<p style="color:#ccc;">Thickness: <b style="color:#fff;">${props.thickness} cm</b></p>`;
-				}else if (props.name) {
-					const badgeClass = 'badge-' + (props.status || 'planned');
-					html = `<h4>${props.name}</h4>
-							<span class="badge ${badgeClass}">${props.status || ''}</span>
-							${props.startDate ? `<p style="margin-top:6px">Start: ${props.startDate}</p>` : ''}
-							${props.endDate   ? `<p>End: ${props.endDate}</p>` : ''}`;
-				}else if (props.assetType) {
-					const labels = {
-						temporary_traffic_light: '🚦 Temporary traffic light',
-						warning_sign:            '⚠️ Warning sign',
-						site_entrance:           '🚧 Site entrance',
-						detour_sign:             '↪️ Detour sign'
-					};
-					html = `<h4>${labels[props.assetType] || props.assetType}</h4>`;
-				}
-				if (html) {
-					popup.innerHTML = `<button class="popup-close"
-						onclick="document.getElementById('popup').style.display='none'">✕</button>` + html;
-					popup.style.display = 'block';
-					popup.style.left = (evt.pixel[0] + 12) + 'px';
-					popup.style.top  = (evt.pixel[1] - 10) + 'px';
-				}
-				return; // doesn't do proximity if you've clicked on a feature
-			}
-
-			popup.style.display = 'none';
-
-		});
-
-		map.on('pointermove', function(evt) {
-			const anyActive = Object.values(modes).some(m => m.active);
-			if (pickMode || anyActive) return;
-			const hit = map.hasFeatureAtPixel(evt.pixel);
-			map.getTargetElement().style.cursor = map.hasFeatureAtPixel(evt.pixel) ? 'pointer' : '';
-		});
-
-		function startDrawSite() {
-			resetButtons();
-
-			const btn = document.getElementById('btn-add');
-			btn.textContent = '🖊 Draw the perimeter...';
-			btn.style.background = '#e8af34';
-
-			const drawSource = new ol.source.Vector();
-			drawSite = new ol.interaction.Draw({
-				source: drawSource,
-				type: 'Polygon'
-			});
-
-			drawSite.on('drawend', function(evt) {
-				// Converts geometry in WKT 4326
-				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
-					dataProjection: 'EPSG:4326',
-					featureProjection: 'EPSG:3857'
-				});
-				// Saves WKT in the hidden field of the form
-				document.getElementById('edit-geometry').value = wkt;
-
-				// Remove interaction and restore the button
-				map.removeInteraction(drawSite);
-				drawSite = null;
-				btn.textContent = '+ New construction site';
-				btn.style.background = '#4f98a3';
-
-				// Open form
-				document.getElementById('panel-title').textContent = 'New construction site';
-				document.getElementById('edit-id').value = '';
-				document.getElementById('edit-name').value = '';
-				document.getElementById('edit-status').value = 'active';
-				document.getElementById('edit-start').value = '';
-				document.getElementById('edit-end').value = '';
-				document.getElementById('btn-delete').style.display = 'none';
-				document.getElementById('edit-panel').style.display = 'block';
-				document.getElementById('overlay').style.display = 'block';
-			});
-
-			map.addInteraction(drawSite);
-		}
-
-		function startDrawAsset() {
-			
-			resetButtons();
-			
-			map.getTargetElement().style.cursor = 'crosshair';
-
-			const btn = document.querySelector('[onclick="startDrawAsset()"]');
-			btn.textContent = '📍 Click on the map...';
-			btn.style.background = '#4f98a3';
-
-			const drawSource = new ol.source.Vector();
-			drawAsset = new ol.interaction.Draw({
-				source: drawSource,
-				type: 'Point'
-			});
-
-			drawAsset.on('drawend', function(evt) {
-				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
-					dataProjection: 'EPSG:4326',
-					featureProjection: 'EPSG:3857'
-				});
-				document.getElementById('asset-geometry').value = wkt;
-				document.getElementById('asset-id').value = '';
-				document.getElementById('asset-type').value = 'temporary_traffic_light';
-				document.getElementById('asset-btn-delete').style.display = 'none';
-				document.getElementById('asset-panel-title').textContent = 'New asset';
-				document.getElementById('asset-panel').style.display = 'block';
-
-				populateSiteDropdown();
-				document.getElementById('asset-panel').style.display = 'block';
-				document.getElementById('overlay').style.display = 'block';
-
-				map.removeInteraction(drawAsset);
-				drawAsset = null;
-				map.getTargetElement().style.cursor = '';
-				btn.textContent = '+ New asset';
-				btn.style.background = '#e8af34';
-			});
-
-			map.addInteraction(drawAsset);
-		}
-
-
-		function openAssetEditPanel(props) {
-			document.getElementById('asset-panel-title').textContent = 'Edit asset';
-			document.getElementById('asset-id').value      = props.id || '';
-			document.getElementById('asset-type').value    = props.assetType || 'warning_sign';
-			document.getElementById('asset-geometry').value = '';
-			document.getElementById('asset-btn-delete').style.display = 'block';
-			populateSiteDropdown(props.siteId);
-			document.getElementById('asset-panel').style.display = 'block';
-			document.getElementById('overlay').style.display = 'block';
-		}
-
-		async function saveAsset() {
-			const id = document.getElementById('asset-id').value;
-			const body = {
-				assetType: document.getElementById('asset-type').value,
-				siteId:    parseInt(document.getElementById('asset-site-id').value) || null,
-				geometry:  document.getElementById('asset-geometry').value || null
-			};
-			const url    = id ? `/api/asset/assets/${id}` : '/api/asset/assets';
-			const method = id ? 'PUT' : 'POST';
-			await fetch(url, {
-				method,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
-			});
-			document.getElementById('asset-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		async function deleteAsset() {
-			const id = document.getElementById('asset-id').value;
-			if (!id || !confirm('Remove this asset?')) return;
-			await fetch(`/api/asset/assets/${id}`, { method: 'DELETE' });
-			document.getElementById('asset-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		// API data loading
-		const format = new ol.format.WKT();
-
-		function parseFeatures(items) {
-			return items.map(item => {
-				const geoKey = Object.keys(item).find(k => k.toLowerCase() === 'geometry');
-				if (!geoKey || !item[geoKey]) return null;
-
-				try {
-					const feature = format.readFeature(item[geoKey], {
-						dataProjection:    'EPSG:4326',
-						featureProjection: 'EPSG:3857'
-					});
-
-					// copies the proprerties without overwriting the already-parsed geometry
-					const props = { ...item };
-					delete props[geoKey];         
-					feature.setProperties(props);  
-
-					return feature;
-				} catch(e) {
-					console.error('Error WKT:', e.message, item[geoKey]);
-					return null;
-				}
-			}).filter(f => f !== null);
-		}
-
-		// ── CANALS ──────────────────────────────────────────────────────────
-
-		// SNAP CANALS: connect endpoints to existing canals
-		function snapCanalEndpoints(coords) {
-			const SNAP_TOLERANCE_M = 1.0;
-			let start = [...coords[0]];
-			let end   = [...coords[coords.length - 1]];
-
-			let bestStartDist = SNAP_TOLERANCE_M;
-			let bestEndDist   = SNAP_TOLERANCE_M;
-
-			canalsSource.getFeatures().forEach(function(feat) {
-				const pts = feat.getGeometry().getCoordinates();
-				[pts[0], pts[pts.length - 1]].forEach(function(pt) {
-					const dStart = Math.hypot(pt[0] - start[0], pt[1] - start[1]);
-					const dEnd   = Math.hypot(pt[0] - end[0],   pt[1] - end[1]);
-
-					// Snap start only if it is the closest candidate so far
-					if (dStart < bestStartDist) {
-						bestStartDist = dStart;
-						start = [...pt];
-					}
-					// Snap end only if it is the closest candidate so far and it hasn't been used as start yet
-					if (dEnd < bestEndDist) {
-						bestEndDist = dEnd;
-						end = [...pt];
-					}
-				});
-			});
-
-			const snapped = [...coords];
-			snapped[0]                  = start;
-			snapped[snapped.length - 1] = end;
-			return snapped;
-		}
-
-		function startDrawCanal() {
-			
-			resetButtons();
-
-			const btn = document.querySelector('[onclick="startDrawCanal()"]');
-			btn.textContent = '🖊 Draw the canal...';
-			btn.style.background = '#0066cc';
-
-			const drawSource = new ol.source.Vector();
-			drawCanal = new ol.interaction.Draw({ source: drawSource, type: 'LineString' });
-
-			drawCanal.on('drawend', function(evt) {
-				const geom   = evt.feature.getGeometry();
-				// SNAP before saving
-				const snappedCoords = snapCanalEndpoints(geom.getCoordinates());
-				geom.setCoordinates(snappedCoords);
-				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
-					dataProjection: 'EPSG:4326',
-					featureProjection: 'EPSG:3857'
-				});
-				document.getElementById('canal-geometry').value = wkt;
-				document.getElementById('canal-id').value = '';
-				document.getElementById('canal-name').value = '';
-				document.getElementById('canal-status').value = 'planned';
-				document.getElementById('canal-btn-delete').style.display = 'none';
-				document.getElementById('canal-panel-title').textContent = 'New canal';
-
-				document.getElementById('canal-panel').style.display = 'block';
-				document.getElementById('overlay').style.display = 'block';
-
-				map.removeInteraction(drawCanal);
-				drawCanal = null;
-				btn.textContent = '+ New canal';
-				btn.style.background = '#0d3d6b';
-			});
-
-			map.addInteraction(drawCanal);
-		}
-
-		async function saveCanal() {
-			const id = document.getElementById('canal-id').value;
-			const body = {
-				name:       document.getElementById('canal-name').value,
-				status:     document.getElementById('canal-status').value,
-				geometry:   document.getElementById('canal-geometry').value || null
-			};
-			const url    = id ? `/api/canal/canals/${id}` : '/api/canal/canals';
-			const method = id ? 'PUT' : 'POST';
-			await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-			document.getElementById('canal-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			map.getTargetElement().style.cursor = '';
-			await loadAllData();
-		}
-
-		async function deleteCanal() {
-			const id = document.getElementById('canal-id').value;
-			if (!id || !confirm('Delete this canal?')) return;
-			await fetch(`/api/canal/canals/${id}`, { method: 'DELETE' });
-			document.getElementById('canal-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		function openCanalEditPanel(props) {
-			document.getElementById('canal-panel-title').textContent = 'Edit canal';
-			document.getElementById('canal-id').value    = props.id || '';
-			document.getElementById('canal-name').value  = props.name || '';
-			document.getElementById('canal-status').value = props.status || 'planned';
-			document.getElementById('canal-geometry').value = '';
-			document.getElementById('canal-btn-delete').style.display = 'block';
-			document.getElementById('canal-panel').style.display = 'block';
-			document.getElementById('overlay').style.display = 'block';
-		}
-
-		async function loadAllData() {
-			try {
-				const [sitesRes, affectedRes, assetsRes, canalsRes, wallsRes] = await Promise.all([
-					fetch('/api/site/sites'),
-					fetch('/api/map/affected-network-roads'),
-					fetch('/api/asset/assets'),
-					fetch('/api/canal/canals'),
-					fetch('/api/wall/walls')
-				]);
-
-				allSites         = await sitesRes.json();
-				allAffectedRoads = await affectedRes.json();
-				allAssets        = await assetsRes.json();
-				allCanals        = (await canalsRes.json()).map(c => ({ ...c, canalType: 'cable' })); 
-				allWalls = await wallsRes.json();
-
-				const netRes  = await fetch('/api/map/roads');
-				const netData = await netRes.json();
-				networkSource.clear();
-				networkSource.addFeatures(parseFeatures(netData));
-				applyFilters();
-				populateInspectorPanel();
-
-			} catch(err) {
-				console.error('Errore loading data:', err);
-				document.getElementById('cnt-sites').textContent  = 'ERR';
-				document.getElementById('cnt-roads').textContent  = 'ERR';
-				document.getElementById('cnt-assets').textContent = 'ERR';
-				document.getElementById('cnt-canals').textContent = 'ERR'; 
-			}
-		}
-
-		// Filters
-		function isChecked(id) {
-			return document.getElementById(id)?.checked ?? true;
-		}
-
-		function applyAreaFilter(extent) {
-			queryHighlightSource.clear();
-			let nSites = 0, nAssets = 0, nCanals = 0;
-
-			sitesSource.getFeaturesInExtent(extent).forEach(f => {
-				queryHighlightSource.addFeature(f.clone());
-				nSites++;
-			});
-			assetsSource.getFeaturesInExtent(extent).forEach(f => {
-				queryHighlightSource.addFeature(f.clone());
-				nAssets++;
-			});
-			canalsSource.getFeatures().forEach(f => {
-				// Per le linee getFeaturesInExtent non basta — controlla intersezione
-				if (f.getGeometry().intersectsExtent(extent)) {
-					queryHighlightSource.addFeature(f.clone());
-					nCanals++;
-				}
-			});
-
-			const info = document.getElementById('query-info');
-			info.style.display = 'block';
-			info.innerHTML = `<b>Selection:</b><br>
-				Sites: <b>${nSites}</b> &nbsp;|&nbsp;
-				Assets: <b>${nAssets}</b> &nbsp;|&nbsp;
-				Canals: <b>${nCanals}</b>`;
-			document.getElementById('btn-clear-query').style.display = 'block';
-			deactivateMode('queryArea');
-		}
-
-		function clearQueryArea() {
-			queryHighlightSource.clear();
-			document.getElementById('query-info').style.display = 'none';
-			document.getElementById('btn-clear-query').style.display = 'none';
-		}
-
-		function applyFilters() {
-
-			const activeSites = allSites.filter(s => {
-				if (s.status === 'active'    && !isChecked('filter-sites-active'))    return false;
-				if (s.status === 'planned'   && !isChecked('filter-sites-planned'))   return false;
-				if (s.status === 'completed' && !isChecked('filter-sites-completed')) return false;
-				return true;
-			});
-
-			const activeRoads = allAffectedRoads.filter(r => {
-				if (r.siteStatus === 'active'  && !isChecked('filter-roads-closed'))   return false;
-				if (r.siteStatus === 'planned' && !isChecked('filter-roads-reduced'))  return false;
-				return true;
-			});
-
-			const activeAssets = allAssets.filter(a => isChecked('filter-asset-' + a.assetType));
-
-			const activeCanals = allCanals.filter(() => isChecked('filter-canals-visible'));
-
-			const activeWalls = allWalls.filter(() => isChecked('filter-walls-visible'));
-
-
-			// Update sources
-			sitesSource.clear();
-			assetsSource.clear();
-			affectedRoadsSource.clear();
-			canalsSource.clear();
-			wallsSource.clear();
-
-			sitesSource.addFeatures(parseFeatures(activeSites));
-			assetsSource.addFeatures(parseFeatures(activeAssets));
-			affectedRoadsSource.addFeatures(parseFeatures(activeRoads));
-			canalsSource.addFeatures(parseFeatures(activeCanals));
-			wallsSource.addFeatures(parseFeatures(activeWalls));
-
-
-			// Update counters
-			document.getElementById('cnt-sites').textContent  = activeSites.length;
-			document.getElementById('cnt-roads').textContent  = activeRoads.length;
-			document.getElementById('cnt-assets').textContent = activeAssets.length;
-			document.getElementById('cnt-canals').textContent = activeCanals.length;
-
-		}
-
-		//walls
-		function startDrawWall() {
-			resetButtons();
-			const btn = document.querySelector('[onclick="startDrawWall()"]');
-			btn.textContent = '🖊 Draw the wall...';
-			btn.style.background = '#78909c';
-
-			const drawSource = new ol.source.Vector();
-			drawWall = new ol.interaction.Draw({ source: drawSource, type: 'LineString' });
-
-			drawWall.on('drawend', function(evt) {
-				const wkt = new ol.format.WKT().writeFeature(evt.feature, {
-					dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
-				});
-				document.getElementById('wall-geometry').value = wkt;
-				document.getElementById('wall-id').value = '';
-				document.getElementById('wall-name').value = '';
-				document.getElementById('wall-thickness').value = '20';
-				document.getElementById('wall-material').value = 'concrete';
-				document.getElementById('wall-btn-delete').style.display = 'none';
-				document.getElementById('wall-panel-title').textContent = 'New wall';
-				document.getElementById('wall-panel').style.display = 'block';
-				document.getElementById('overlay').style.display = 'block';
-				map.removeInteraction(drawWall);
-				drawWall = null;
-				btn.textContent = '+ New wall';
-				btn.style.background = '#546e7a';
-			});
-			map.addInteraction(drawWall);
-		}
-
-		function openWallEditPanel(props) {
-			document.getElementById('wall-panel-title').textContent = 'Edit wall';
-			document.getElementById('wall-id').value        = props.id || '';
-			document.getElementById('wall-name').value      = props.name || '';
-			document.getElementById('wall-thickness').value = props.thickness || 20;
-			document.getElementById('wall-material').value  = props.material || 'concrete';
-			document.getElementById('wall-geometry').value  = '';
-			document.getElementById('wall-btn-delete').style.display = 'block';
-			document.getElementById('wall-panel').style.display = 'block';
-			document.getElementById('overlay').style.display = 'block';
-		}
-
-
-		async function saveWall() {
-			const id = document.getElementById('wall-id').value;
-			const body = {
-				name:      document.getElementById('wall-name').value,
-				thickness: parseFloat(document.getElementById('wall-thickness').value) || 20,
-				material:  document.getElementById('wall-material').value,
-				geometry:  document.getElementById('wall-geometry').value || null
-			};
-			const url    = id ? `/api/wall/walls/${id}` : '/api/wall/walls';
-			const method = id ? 'PUT' : 'POST';
-			await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-			document.getElementById('wall-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		async function deleteWall() {
-			const id = document.getElementById('wall-id').value;
-			if (!id || !confirm('Delete this wall?')) return;
-			await fetch(`/api/wall/walls/${id}`, { method: 'DELETE' });
-			document.getElementById('wall-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		// CRUD
-
-		function openEditPanel(props) {
-			document.getElementById('panel-title').textContent = 'Edit site';
-			document.getElementById('edit-id').value      = props.id || '';
-			document.getElementById('edit-name').value    = props.name || '';
-			document.getElementById('edit-status').value  = props.status || 'active';
-			document.getElementById('edit-start').value   = props.startDate ? props.startDate.substring(0,10) : '';
-			document.getElementById('edit-end').value     = props.endDate   ? props.endDate.substring(0,10)   : '';
-			document.getElementById('edit-geometry').value = '';
-			document.getElementById('btn-delete').style.display = 'block';
-			document.getElementById('edit-panel').style.display = 'block';
-			document.getElementById('overlay').style.display    = 'block';
-		}
-
-		async function saveChanges() {
-			const id       = document.getElementById('edit-id').value;
-			const geometry = document.getElementById('edit-geometry').value;
-			const body = {
-				name:      document.getElementById('edit-name').value,
-				status:    document.getElementById('edit-status').value,
-				startDate: document.getElementById('edit-start').value || null,
-				endDate:   document.getElementById('edit-end').value || null,
-				geometry:  geometry || null  
-			};
-			const url    = id ? `/api/site/sites/${id}` : '/api/site/sites';
-			const method = id ? 'PUT' : 'POST';
-			const res = await fetch(url, {
-				method,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
-			});
-
-			if (res.ok) {
-				const msg = document.createElement('div');
-				msg.textContent = id ? '✅ Construction site updated' : '✅ Construction site created';
-				msg.style.cssText = 'background:#1a3a20;color:#6daa45;padding:8px;border-radius:6px;font-size:0.82rem;text-align:center;';
-				document.getElementById('sidebar').appendChild(msg);
-				setTimeout(() => msg.remove(), 3000);
-			}
-
-			document.getElementById('edit-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		async function deleteSite() {
-			const id = document.getElementById('edit-id').value;
-			if (!id || !confirm('Delete this site?')) return;
-			await fetch(`/api/site/sites/${id}`, { method: 'DELETE' });
-			document.getElementById('edit-panel').style.display = 'none';
-			document.getElementById('overlay').style.display = 'none';
-			resetButtons();
-			await loadAllData();
-		}
-
-		function populateSiteDropdown(selectedId = null) {
-			const select = document.getElementById('asset-site-id');
-			select.innerHTML = '<option value="">— none —</option>';
-			const availableSites = allSites.filter(s => s.status === 'active' || s.status === 'planned');
-
-			availableSites.forEach(s => {
-				const opt = document.createElement('option');
-				opt.value = s.id;
-				const statusLabel = { active: 'active', planned: 'planned' };
-				opt.textContent = `#${s.id} — ${s.name || 'No name'} (${statusLabel[s.status]})`;
-				if (selectedId && s.id === parseInt(selectedId)) opt.selected = true;
-				select.appendChild(opt);
-			});
-		}
-
-		// ── SISTEMA TOGGLE UNIFICATO ─────────────────────────────────────────────
-		const modes = {
-			canalSelect: {
-				active: false,
-				btnId: 'btn-canal-select',
-				onText: '🖱️ Selecting… click to stop',
-				offText: '🖱️ Select canals',
-				onStyle:  { background: '#1a80e5', color: '#fff', border: '1px solid #1a80e5' },
-				offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #1a80e5' },
-				cursor: 'crosshair',
-				onActivate: null,
-				onDeactivate: null
-			},
-			editWall: {
-				active:  false,
-				btnId:   'btn-edit-wall',
-				onText:  '✏️ Wall ON — click a wall',
-				offText: '✏️ Edit wall',
-				onStyle:  { background: '#78909c', color: '#fff', border: '1px solid #78909c' },
-				offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #78909c' },
-				cursor:  'crosshair',
-				onActivate: null, onDeactivate: null
-			},
-			modifyWall: {
-				active:  false,
-				btnId:   'btn-modify-wall',
-				onText:  '↕️ Wall ON — drag a vertex',
-				offText: '↕️ Reshape wall',
-				onStyle:  { background: '#78909c', color: '#fff', border: '1px solid #78909c' },
-				offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #78909c' },
-				cursor:  'crosshair',
-				onActivate: function() {
-					modifyWallInteraction = new ol.interaction.Modify({ source: wallsSource });
-					modifyWallInteraction.on('modifyend', async function(evt) {
-						for (const feature of evt.features.getArray()) {
-							const id = feature.get('id');
-							if (!id) continue;
-							const wkt = new ol.format.WKT().writeGeometry(feature.getGeometry(), {
-								dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
-							});
-							await fetch(`/api/wall/walls/${id}`, {
-								method: 'PUT',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({
-									name:      feature.get('name'),
-									thickness: feature.get('thickness') ?? 20,
-									material:  feature.get('material') ?? 'concrete',
-									geometry:  wkt
-								})
-							});
-						}
-						await loadAllData();
-					});
-					map.addInteraction(modifyWallInteraction);
-				},
-				onDeactivate: function() {
-					if (modifyWallInteraction) { map.removeInteraction(modifyWallInteraction); modifyWallInteraction = null; }
-				}
-			},
-			modifySite: {
-				active:  false,
-				btnId:   'btn-modify-site',
-				onText:  '↕️ Site ON — drag a vertex',
-				offText: '↕️ Reshape site',
-				onStyle:  { background: '#fdab43', color: '#1a1a2e', border: '1px solid #fdab43' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #fdab43' },
-				cursor:  'crosshair',
-				onActivate: function() {
-					modifySiteInteraction = new ol.interaction.Modify({ source: sitesSource });
-					modifySiteInteraction.on('modifyend', async function(evt) {
-						for (const feature of evt.features.getArray()) {
-							const id = feature.get('id');
-							if (!id) continue;
-							const wkt = new ol.format.WKT().writeGeometry(
-								feature.getGeometry(),
-								{ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' }
-							);
-							await fetch(`/api/site/sites/${id}`, {
-								method: 'PUT',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({
-									name:      feature.get('name'),
-									status:    feature.get('status'),
-									startDate: feature.get('startDate') ?? null,
-									endDate:   feature.get('endDate')   ?? null,
-									geometry:  wkt
-								})
-							});
-						}
-						await loadAllData();
-					});
-					map.addInteraction(modifySiteInteraction);
-				},
-				onDeactivate: function() {
-					if (modifySiteInteraction) {
-						map.removeInteraction(modifySiteInteraction);
-						modifySiteInteraction = null;
-					}
-				}
-			},
-			modifyCanal: {
-				active:  false,
-				btnId:   'btn-modify-canal',
-				onText:  '↕️ Canal ON — drag a vertex',
-				offText: '↕️ Reshape canal',
-				onStyle:  { background: '#0066cc', color: '#fff',    border: '1px solid #0066cc' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #0066cc' },
-				cursor:  'crosshair',
-				onActivate: function() {
-					modifyCanalInteraction = new ol.interaction.Modify({ source: canalsSource });
-					modifyCanalInteraction.on('modifyend', async function(evt) {
-						for (const feature of evt.features.getArray()) {
-							const id = feature.get('id');
-							if (!id) continue;
-							const wkt = new ol.format.WKT().writeGeometry(
-								feature.getGeometry(),
-								{ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' }
-							);
-							await fetch(`/api/canal/canals/${id}`, {
-								method: 'PUT',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({
-									name:     feature.get('name'),
-									status:   feature.get('status'),
-									geometry: wkt
-								})
-							});
-						}
-						await loadAllData();
-					});
-					map.addInteraction(modifyCanalInteraction);
-				},
-				onDeactivate: function() {
-					if (modifyCanalInteraction) {
-						map.removeInteraction(modifyCanalInteraction);
-						modifyCanalInteraction = null;
-					}
-				}
-			},
-			editSite: {
-				active:  false,
-				btnId:   'btn-edit',
-				onText:  '✏️ Edit ON — click on a site',
-				offText: '✏️ Edit state',
-				onStyle:  { background: '#4f98a3', color: '#fff',    border: '1px solid #4f98a3' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #4f98a3' },
-				cursor:  'crosshair',
-				onActivate: null, onDeactivate: null
-			},
-			editAsset: {
-				active:  false,
-				btnId:   'btn-edit-asset',
-				onText:  '✏️ Asset ON — click on a point',
-				offText: '✏️ Edit asset',
-				onStyle:  { background: '#e8af34', color: '#1a1a2e', border: '1px solid #e8af34' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #e8af34' },
-				cursor:  'crosshair',
-				onActivate: null, onDeactivate: null
-			},
-			moveAsset: {
-				active:  false,
-				btnId:   'btn-move-asset',
-				onText:  '↕️ Move ON — drag an asset',
-				offText: '↕️ Move asset',
-				onStyle:  { background: '#4f98a3', color: '#fff',    border: '1px solid #4f98a3' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #4f98a3' },
-				cursor:  'grab',
-				onActivate: function() {
-					translateInteraction = new ol.interaction.Translate({ layers: [assetsLayer] });
-					translateInteraction.on('translateend', async function(evt) {
-						for (const feature of evt.features.getArray()) {
-							const id = feature.get('id');
-							if (!id) continue;
-							const coord = ol.proj.toLonLat(feature.getGeometry().getCoordinates());
-							await fetch(`/api/asset/assets/${id}`, {
-								method: 'PUT',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({
-									assetType: feature.get('assetType'),
-									siteId:    feature.get('siteId') ?? null,
-									geometry:  `POINT(${coord[0]} ${coord[1]})`
-								})
-							});
-						}
-						await loadAllData();
-					});
-					map.addInteraction(translateInteraction);
-				},
-				onDeactivate: function() {
-					if (translateInteraction) {
-						map.removeInteraction(translateInteraction);
-						translateInteraction = null;
-					}
-				}
-			},
-			editCanal: {
-				active:  false,
-				btnId:   'btn-edit-canal',
-				onText:  '✏️ Canal ON — click a line',
-				offText: '✏️ Edit canal',
-				onStyle:  { background: '#0066cc', color: '#fff',    border: '1px solid #0066cc' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #0066cc' },
-				cursor:  'crosshair',
-				onActivate: null, onDeactivate: null
-			},
-			queryArea: {
-				active:  false,
-				btnId:   'btn-query-area',
-				onText:  '🔲 Drag to select area...',
-				offText: '🔲 Query area',
-				onStyle:  { background: '#dd6974', color: '#fff',    border: '1px solid #dd6974' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #dd6974' },
-				cursor:  'crosshair',
-				onActivate: function() {
-					dragBoxInteraction = new ol.interaction.DragBox({
-						condition: ol.events.condition.noModifierKeys
-					});
-					dragBoxInteraction.on('boxend', function() {
-						const extent = dragBoxInteraction.getGeometry().getExtent();
-						applyAreaFilter(extent);
-					});
-					map.addInteraction(dragBoxInteraction);
-				},
-				onDeactivate: function() {
-					if (dragBoxInteraction) {
-						map.removeInteraction(dragBoxInteraction);
-						dragBoxInteraction = null;
-					}
-				}
-			},
-			queryNearest: {
-				active:  false,
-				btnId:   'btn-query-nearest',
-				onText:  '📍 Click a point on the map...',
-				offText: '📍 N nearest sites',
-				onStyle:  { background: '#dd6974', color: '#fff',    border: '1px solid #dd6974' },
-				offStyle: { background: '#2a3a5e', color: '#eee',    border: '1px solid #dd6974' },
-				cursor:  'crosshair',
-				onActivate: null, onDeactivate: null
-			},
-		};
-
-		function activateMode(key) {
-			Object.keys(modes).forEach(k => { if (k !== key && modes[k].active) deactivateMode(k); });
-			const mode = modes[key];
-			if (mode.active) { deactivateMode(key); return; }
-			mode.active = true;
-			const btn = document.getElementById(mode.btnId);
-			if (btn) { btn.textContent = mode.onText; Object.assign(btn.style, mode.onStyle); }
-			map.getTargetElement().style.cursor = mode.cursor;
-			if (mode.onActivate) mode.onActivate();
-		}
-
-		function deactivateMode(key) {
-			const mode = modes[key];
-			if (!mode.active) return;
-			mode.active = false;
-			const btn = document.getElementById(mode.btnId);
-			if (btn) { btn.textContent = mode.offText; Object.assign(btn.style, mode.offStyle); }
-			map.getTargetElement().style.cursor = '';
-			if (mode.onDeactivate) mode.onDeactivate();
-		}
-
-		// Alias — gli onclick= nell'HTML non cambiano
-		function toggleEditMode()      { activateMode('editSite');  }
-		function toggleAssetEditMode() { activateMode('editAsset'); }
-		function toggleMoveAssetMode() { activateMode('moveAsset'); }
-		function toggleCanalEditMode() { activateMode('editCanal'); }
-		function toggleQueryAreaMode() { activateMode('queryArea'); }
-		function toggleNearestMode() { activateMode('queryNearest'); }
-		function toggleModifySiteMode()  { activateMode('modifySite');  }
-		function toggleModifyCanalMode() { activateMode('modifyCanal'); }
-		function toggleWallEditMode()   { activateMode('editWall');   }
-		function toggleModifyWallMode() { activateMode('modifyWall'); }
-
-
-		function resetButtons() {
-			Object.keys(modes).forEach(k => deactivateMode(k));
-			map.getTargetElement().style.cursor = '';
-		}
-
-		// User navigation routing
-		let routeFrom = null;
-		let routeTo   = null;
-		let pickMode  = null;
-		let routeLayer = null;
-		const routeMarkersSource = new ol.source.Vector();
-		const routeMarkersLayer  = new ol.layer.Vector({
-			source: routeMarkersSource,
-			zIndex: 10,
-			style: function(feature) {
-				const type = feature.get('pointType');
-				return new ol.style.Style({
-					image: new ol.style.Circle({
-						radius: 10,
-						fill:   new ol.style.Fill({ color: type === 'from' ? '#4f98a3' : '#ff6b6b' }),
-						stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
-					}),
-					text: new ol.style.Text({
-						text: type === 'from' ? 'A' : 'B',
-						fill: new ol.style.Fill({ color: '#fff' }),
-						font: 'bold 11px sans-serif'
-					})
-				});
-			}
-		});
-		map.addLayer(routeMarkersLayer);
-
-		function startPickPoint(type) {
-
-			resetButtons();
-
-			if (type === 'from') {
-				routeMarkersSource.clear();
-				if (routeLayer) {
-					map.removeLayer(routeLayer);
-					routeLayer = null;
-				}
-				document.getElementById('route-info').style.display = 'none';
-				document.getElementById('btn-clear-route').style.display = 'none';
-				document.getElementById('btn-route').style.display = 'none';
-				routeFrom = null;
-				routeTo = null;
-				document.getElementById('btn-pick-to').disabled = true;
-			}
-
-			if (type === 'to') {
-				routeMarkersSource.getFeatures()
-					.filter(f => f.get('pointType') === 'to')
-					.forEach(f => routeMarkersSource.removeFeature(f));
-				routeTo = null;
-			}
-
-			pickMode = type;
-			const btnFrom = document.getElementById('btn-pick-from');
-			const btnTo   = document.getElementById('btn-pick-to');
-			btnFrom.style.background = type === 'from' ? '#4f98a3' : '#2a3a5e';
-			btnTo.style.background   = type === 'to'   ? '#ff6b6b' : '#2a3a5e';
-			map.getTargetElement().style.cursor = 'crosshair';
-		}
-
-		function clearRoute() {
-			pickMode = null;
-			routeFrom = null;
-			routeTo   = null;
-			routeMarkersSource.clear();
-			if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-			document.getElementById('btn-route').style.display = 'none';
-			document.getElementById('btn-clear-route').style.display = 'none';
-			document.getElementById('route-info').style.display = 'none';
-			document.getElementById('btn-pick-from').style.background = '#2a3a5e';
-			document.getElementById('btn-pick-to').style.background   = '#2a3a5e';
-			document.getElementById('btn-pick-to').disabled = true;
-			map.getTargetElement().style.cursor = '';
-		}
-
-		async function calculateRouteAB() {
-			if (!routeFrom || !routeTo) return;
-			document.getElementById('btn-route').textContent = '⏳ Computing...';
-			try {
-				const res = await fetch(
-					`/api/route/route?fromLon=${routeFrom[0]}&fromLat=${routeFrom[1]}&toLon=${routeTo[0]}&toLat=${routeTo[1]}`
-				);
-				const segments = await res.json();
-				if (!segments.length) {
-					document.getElementById('route-info').style.display = 'block';
-					document.getElementById('route-info').textContent = '⚠️ No route found';
-					return;
-				}
-				if (routeLayer) map.removeLayer(routeLayer);
-
-				const fmt = new ol.format.WKT();
-				const features = segments
-					.filter(s => s.geometry)
-					.map(s => fmt.readFeature(s.geometry, {
-						dataProjection: 'EPSG:4326',
-						featureProjection: 'EPSG:3857'
-					}));
-				routeLayer = new ol.layer.Vector({
-					source: new ol.source.Vector({ features }),
-					style: new ol.style.Style({
-						stroke: new ol.style.Stroke({ color: '#00CC44', width: 5 })
-					}),
-					zIndex: 9
-				});
-				map.addLayer(routeLayer);
-				const totalMeters = features.reduce((sum, f) => sum + ol.sphere.getLength(f.getGeometry()), 0);
-				const km = (totalMeters / 1000).toFixed(2);
-				const info = document.getElementById('route-info');
-				info.style.display = 'block';
-				info.textContent = `✅ Length: ${km} kms`;
-				document.getElementById('btn-clear-route').style.display = 'block';
-			} finally {
-				document.getElementById('btn-route').textContent = '🗺 Compute route';
-			}
-		}
-
-		// Inspector tour
-		const legColors = ['#a86fdf','#ff6b6b','#fdab43','#4f98a3','#5591c7','#6daa45'];
-		let inspectorLayer = null;
-
-		function populateInspectorPanel() {
-			const startSelect = document.getElementById('inspector-start');
-			const listDiv     = document.getElementById('inspector-sites-list');
-			if (!startSelect || !listDiv) return;
-
-			const activeSites = allSites.filter(s => s.status === 'active' || s.status === 'planned');
-
-			startSelect.innerHTML = '<option value="">— select —</option>';
-			activeSites.forEach(s => {
-				const opt = document.createElement('option');
-				opt.value = s.id;
-				opt.textContent = `#${s.id} — ${s.name || 'No name'}`;
-				startSelect.appendChild(opt);
-			});
-
-			listDiv.innerHTML = '';
-			activeSites.forEach(s => {
-				const label = document.createElement('label');
-				label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:0.78rem;cursor:pointer;padding:3px 0;';
-				label.innerHTML = `
-					<input type="checkbox" value="${s.id}" checked
-						style="accent-color:#a86fdf;width:13px;height:13px;" />
-					<span style="color:#ccc;">#${s.id} — ${s.name || 'No name'}</span>
-				`;
-				listDiv.appendChild(label);
-			});
-		}
-
-		async function calculateInspectorTour() {
-			const startId = parseInt(document.getElementById('inspector-start').value);
-			if (!startId) {
-				alert('Select the construction site to start');
-				return;
-			}
-			const checked = [...document.querySelectorAll('#inspector-sites-list input:checked')]
-				.map(cb => parseInt(cb.value))
-				.filter(id => id !== startId);
-
-			if (checked.length === 0) {
-				alert('Select at least a site to visit');
-				return;
-			}
-
-			const allIds = [startId, ...checked];
-			document.querySelector('[onclick="calculateInspectorTour()"]').textContent = '⏳ Computing...';
-
-			try {
-				const res = await fetch('/api/route/inspector-route', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(allIds)
-				});
-				const data = await res.json();
-				const segments = data.segments ?? data;
-				const orderedSiteIds = data.orderedSiteIds ?? allIds;
-
-				if (!segments.length) {
-					document.getElementById('tour-info').style.display = 'block';
-					document.getElementById('tour-info').textContent = '⚠️ Tour not found';
-					return;
-				}
-
-				if (inspectorLayer) map.removeLayer(inspectorLayer);
-				const fmt = new ol.format.WKT();
-				const features = segments
-					.filter(s => s.geometry)
-					.map(s => {
-						const f = fmt.readFeature(s.geometry, {
-							dataProjection: 'EPSG:4326',
-							featureProjection: 'EPSG:3857'
-						});
-						f.set('leg', s.leg);
-						return f;
-					});
-
-				const totalMeters = features.reduce((sum, f) => sum + ol.sphere.getLength(f.getGeometry()), 0);
-				const km = (totalMeters / 1000).toFixed(2);
-
-				inspectorLayer = new ol.layer.Vector({
-					source: new ol.source.Vector({ features }),
-					style: function(feature) {
-						const leg = feature.get('leg') || 0;
-						return new ol.style.Style({
-							stroke: new ol.style.Stroke({
-								color: legColors[leg % legColors.length],
-								width: 5,
-								lineDash: [10, 5]
-							})
-						});
-					},
-					zIndex: 9
-				});
-				map.addLayer(inspectorLayer);
-
-				const info = document.getElementById('tour-info');
-				info.style.display = 'block';
-				const orderedNames = orderedSiteIds.map((id, idx) => {
-					const site = allSites.find(s => s.id === id);
-					const name = site ? site.name : `#${id}`;
-					return `<div style="display:flex;gap:6px;align-items:center;">
-								<span style="background:#a86fdf;color:#fff;border-radius:50%;
-									  width:18px;height:18px;display:flex;align-items:center;
-									  justify-content:center;font-size:0.7rem;flex-shrink:0;">
-									${idx + 1}
-								</span>
-								<span>${name}</span>
-							</div>`;
-				}).join('');
-
-				info.innerHTML = `
-					<div style="margin-bottom:6px;">✅ Tour: ${orderedSiteIds.length} sites — ${km} kms</div>
-					<div style="display:flex;flex-direction:column;gap:4px;">
-						${orderedNames}
-					</div>`;
-				document.getElementById('btn-clear-tour').style.display = 'block';
-
-			} finally {
-				document.querySelector('[onclick="calculateInspectorTour()"]').textContent = '🔍 Compute optimal tour';
-			}
-		}
-
-		function clearInspectorTour() {
-			if (inspectorLayer) { map.removeLayer(inspectorLayer); inspectorLayer = null; }
-			document.getElementById('tour-info').style.display = 'none';
-			document.getElementById('btn-clear-tour').style.display = 'none';
-		}
-
-				// ── Cable Planning ──────────────────────────────────────────
-		let selectedCanalIds = new Set();
-		let cablePlanHighlightSource = new ol.source.Vector();
-		const cablePlanHighlightLayer = new ol.layer.Vector({
-			source: cablePlanHighlightSource,
-			style: new ol.style.Style({
-				stroke: new ol.style.Stroke({ color: '#e8af34', width: 6 })
-			}),
-			zIndex: 9
-		});
-		map.addLayer(cablePlanHighlightLayer);
-
-		let cablePlanMode = false;
-
-		function toggleCanalSelectMode() { activateMode('canalSelect'); }
-
-		function refreshCanalSelectionHighlight() {
-			cablePlanHighlightSource.clear();
-			let totalM = 0;
-			canalsSource.getFeatures().forEach(f => {
-				if (selectedCanalIds.has(f.get('id'))) {
-					cablePlanHighlightSource.addFeature(f.clone());
-					// approximative length in 3857
-					const coords = f.getGeometry().getCoordinates();
-					for (let i = 1; i < coords.length; i++) {
-						const dx = coords[i][0] - coords[i-1][0];
-						const dy = coords[i][1] - coords[i-1][1];
-						totalM += Math.sqrt(dx*dx + dy*dy);
-					}
-				}
-			});
-			const info = document.getElementById('cable-selected-info');
-			if (selectedCanalIds.size > 0) {
-				info.style.display = 'block';
-				document.getElementById('cable-sel-count').textContent = selectedCanalIds.size;
-				document.getElementById('cable-sel-meters').textContent = Math.round(totalM);
-			} else {
-				info.style.display = 'none';
-			}
-		}
-
-		async function calculateCablePlan() {
-			if (selectedCanalIds.size === 0) {
-				alert('Select at least one canal by clicking on the map.');
-				return;
-			}
-			const ids = Array.from(selectedCanalIds).join(',');
-			try {
-				const res = await fetch(`/api/cablecalculator/calculate?canalIds=${ids}`);
-				if (!res.ok) throw new Error(await res.text());
-				const plan = await res.json();
-				renderCablePlan(plan);
-				selectedCanalIds.clear();
-				cablePlanHighlightSource.clear();
-				document.getElementById('cable-selected-info').style.display = 'none';
-				deactivateMode('canalSelect');
-			} catch(e) {
-				alert('Error: ' + e.message);
-			}
-		}
-
-		function renderCablePlan(plan) {
-			document.getElementById('cr-meters').textContent    = plan.totalCableMeters.toFixed(1) + ' m';
-			document.getElementById('cr-segments').textContent  = plan.utpSegmentsCount;
-			document.getElementById('cr-nodes').textContent     = plan.nodesNeeded;
-			document.getElementById('cr-time').textContent      = formatCableTime(plan.totalWorkTimeMin);
-
-			const rd = document.getElementById('cr-route-detail');
-			rd.innerHTML = '';
-			plan.route.forEach(seg => {
-				const div = document.createElement('div');
-				div.style.cssText = 'background:#0d1b2a;border:1px solid #2a3a5e;border-radius:5px;padding:5px 8px;font-size:0.75rem;color:#ccc';
-				const nodes = plan.nodePoints.filter(n => n.canalId === seg.canalId).length;
-				div.innerHTML = `<span style="color:#4f98a3;font-weight:600">Canal ${seg.canalId}</span>
-								 ${seg.lengthM.toFixed(1)} m
-								 ${nodes > 0 ? `<span style="color:#e8af34">${nodes} node${nodes > 1 ? 's' : ''}</span>` : ''}`;
-				rd.appendChild(div);
-			});
-
-			const wd = document.getElementById('cr-walls');
-			wd.innerHTML = '';
-			const allWalls = plan.route.flatMap(s => s.walls);
-			if (allWalls.length === 0) {
-				wd.innerHTML = '<div style="font-size:0.75rem;color:#888">No walls intersected.</div>';
-			} else {
-				allWalls.forEach(w => {
-					const div = document.createElement('div');
-					div.style.cssText = 'background:#0d1b2a;border:1px solid #2a3a5e;border-radius:5px;padding:5px 8px;font-size:0.75rem;color:#ccc';
-					div.innerHTML = `Wall ${w.wallId} <span style="background:#546e7a;color:#fff;border-radius:3px;padding:1px 5px;font-size:0.7rem">${w.material}</span> ${w.thicknessCm} cm <span style="color:#fdab43">${w.drillingTimeMin} min</span>`;
-					wd.appendChild(div);
-				});
-			}
-
-			document.getElementById('cable-results').style.display = 'flex';
-
-			cableNodesSource.clear();
-			plan.nodePoints.forEach(node => {
-				const feature = new ol.Feature({
-					geometry:  new ol.geom.Point(ol.proj.fromLonLat([node.lon, node.lat])),
-					nodeIndex: node.nodeIndex,
-					canalId:   node.canalId
-				});
-				cableNodesSource.addFeature(feature);
-			});
-		}
-
-		function clearCablePlan() {
-			selectedCanalIds.clear();
-			cablePlanHighlightSource.clear();
-			cableNodesSource.clear();
-			document.getElementById('cable-selected-info').style.display = 'none';
-			document.getElementById('cable-results').style.display = 'none';
-		}
-
-		function formatCableTime(mins) {
-			if (!mins) return '0 min';
-			if (mins < 60) return mins + ' min';
-			return Math.floor(mins/60) + 'h ' + (mins % 60) + 'min';
-		}
-
-		loadAllData();
-
-
-	</script>
-
-	<div id="edit-panel" style="display:none; position:fixed; top:50%; left:50%;
+    <div id="edit-panel" style="display:none; position:fixed; top:50%; left:50%;
      transform:translate(-50%,-50%); background:#16213e; border:1px solid #4f98a3;
      border-radius:10px; padding:20px; z-index:1000; min-width:300px;
      box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-		<h3 style="color:#4f98a3; margin-bottom:16px; font-size:0.95rem;" id="panel-title">New construction site</h3>
-		<input type="hidden" id="edit-id" />
-		<input type="hidden" id="edit-geometry" />
-		<div style="display:flex;flex-direction:column;gap:10px;">
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Name</label>
-				<input id="edit-name" type="text" placeholder="e.g. Renovation of Via Roma"
-					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+        <h3 style="color:#4f98a3; margin-bottom:16px; font-size:0.95rem;" id="panel-title">New construction site</h3>
+        <input type="hidden" id="edit-id" />
+        <input type="hidden" id="edit-geometry" />
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Name</label>
+                <input id="edit-name" type="text" placeholder="e.g. Renovation of Via Roma"
+                       style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                 padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Status</label>
-				<select id="edit-status"
-						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Status</label>
+                <select id="edit-status"
+                        style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                 padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
-					<option value="active">Active</option>
-					<option value="planned">Planned</option>
-					<option value="completed">Completed</option>
-				</select>
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Start date</label>
-				<input id="edit-start" type="date"
-					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                    <option value="active">Active</option>
+                    <option value="planned">Planned</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Start date</label>
+                <input id="edit-start" type="date"
+                       style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                 padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">End date</label>
-				<input id="edit-end" type="date"
-					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">End date</label>
+                <input id="edit-end" type="date"
+                       style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                 padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
-			</div>
-			<div style="display:flex;gap:8px;margin-top:6px;">
-				<button onclick="saveChanges()"
-						style="flex:1;background:#4f98a3;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Save
-				</button>
-				<button onclick="document.getElementById('edit-panel').style.display='none'; document.getElementById('overlay').style.display='none';resetButtons()"
-						style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Cancel
-				</button>
-				<button id="btn-delete" onclick="deleteSite()"
-						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
-					🗑
-				</button>
-			</div>
-		</div>
-	</div>
-	<div id="overlay" onclick="document.getElementById('edit-panel').style.display='none';
-								document.getElementById('asset-panel').style.display='none';
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <button onclick="saveChanges()"
+                        style="flex:1;background:#4f98a3;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Save
+                </button>
+                <button onclick="document.getElementById('edit-panel').style.display='none'; document.getElementById('overlay').style.display='none';resetButtons()"
+                        style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Cancel
+                </button>
+                <button id="btn-delete" onclick="deleteSite()"
+                        style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
+                    🗑
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="overlay" onclick="document.getElementById('edit-panel').style.display='none';
+                                document.getElementById('asset-panel').style.display='none';
                                 document.getElementById('canal-panel').style.display='none';
-								document.getElementById('wall-panel').style.display='none';
-								document.getElementById('overlay').style.display='none'; 
-								resetButtons()"
-		 style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
-	<div id="asset-panel" style="display:none; position:fixed; top:50%; left:50%;
+                                document.getElementById('wall-panel').style.display='none';
+                                document.getElementById('overlay').style.display='none';
+                                resetButtons()"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
+    <div id="asset-panel" style="display:none; position:fixed; top:50%; left:50%;
          transform:translate(-50%,-50%); background:#16213e; border:1px solid #4f98a3;
          border-radius:10px; padding:20px; z-index:1000; min-width:280px;
          box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-		<h3 style="color:#4f98a3; margin-bottom:16px; font-size:0.95rem;" id="asset-panel-title">New asset</h3>
-		<input type="hidden" id="asset-id" />
-		<input type="hidden" id="asset-geometry" />
-		<div style="display:flex;flex-direction:column;gap:10px;">
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Type</label>
-				<select id="asset-type"
-						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+        <h3 style="color:#4f98a3; margin-bottom:16px; font-size:0.95rem;" id="asset-panel-title">New asset</h3>
+        <input type="hidden" id="asset-id" />
+        <input type="hidden" id="asset-geometry" />
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Type</label>
+                <select id="asset-type"
+                        style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                     padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
-					<option value="temporary_traffic_light">🚦 Temporary traffic light</option>
-					<option value="warning_sign">⚠️ Warning sign</option>
-					<option value="site_entrance">🚧 Site entrance</option>
-					<option value="detour_sign">↪️ Detour sign</option>
-				</select>
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Associated construction site</label>
-				<select id="asset-site-id"
-						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                    <option value="temporary_traffic_light">🚦 Temporary traffic light</option>
+                    <option value="warning_sign">⚠️ Warning sign</option>
+                    <option value="site_entrance">🚧 Site entrance</option>
+                    <option value="detour_sign">↪️ Detour sign</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Associated construction site</label>
+                <select id="asset-site-id"
+                        style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                                 padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
-					<option value="">— none —</option>
-				</select>
-			</div>
-			<div style="display:flex;gap:8px;margin-top:6px;">
-				<button onclick="saveAsset()"
-						style="flex:1;background:#4f98a3;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Save
-				</button>
-				<button onclick="document.getElementById('asset-panel').style.display='none'; document.getElementById('overlay').style.display='none';resetButtons()"
-						style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Cancel
-				</button>
-				<button id="asset-btn-delete" onclick="deleteAsset()"
-						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
+                    <option value="">— none —</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <button onclick="saveAsset()"
+                        style="flex:1;background:#4f98a3;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Save
+                </button>
+                <button onclick="document.getElementById('asset-panel').style.display='none'; document.getElementById('overlay').style.display='none';resetButtons()"
+                        style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Cancel
+                </button>
+                <button id="asset-btn-delete" onclick="deleteAsset()"
+                        style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
                     padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
-					🗑
-				</button>
-			</div>
-		</div>
-	</div>
-	<div id="canal-panel" style="display:none; position:fixed; top:50%; left:50%;
+                    🗑
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="canal-panel" style="display:none; position:fixed; top:50%; left:50%;
      transform:translate(-50%,-50%); background:#16213e; border:1px solid #0066cc;
      border-radius:10px; padding:20px; z-index:1000; min-width:300px;
      box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-		<h3 style="color:#0066cc; margin-bottom:16px; font-size:0.95rem;" id="canal-panel-title">New canal</h3>
-		<input type="hidden" id="canal-id" />
-		<input type="hidden" id="canal-geometry" />
-		<div style="display:flex;flex-direction:column;gap:10px;">
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Name</label>
-				<input id="canal-name" type="text" placeholder="e.g. Via Roma → Via Mazzini"
-					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
-                   padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Status</label>
-				<select id="canal-status"
-						style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+        <h3 style="color:#0066cc; margin-bottom:16px; font-size:0.95rem;" id="canal-panel-title">New canal</h3>
+        <input type="hidden" id="canal-id" />
+        <input type="hidden" id="canal-geometry" />
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Name</label>
+                <input id="canal-name" type="text" placeholder="e.g. Via Roma → Via Mazzini"
+                       style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
+                    padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Status</label>
+                <select id="canal-status"
+                        style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;
                     padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
-					<option value="planned">Planned</option>
-					<option value="active">Active</option>
-					<option value="completed">Completed</option>
-				</select>
-			</div>
-			<div style="display:flex;gap:8px;margin-top:6px;">
-				<button onclick="saveCanal()"
-						style="flex:1;background:#0066cc;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Save
-				</button>
-				<button onclick="document.getElementById('canal-panel').style.display='none';document.getElementById('overlay').style.display='none';resetButtons()"
-						style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Cancel
-				</button>
-				<button id="canal-btn-delete" onclick="deleteCanal()"
-						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
+                    <option value="planned">Planned</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <button onclick="saveCanal()"
+                        style="flex:1;background:#0066cc;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Save
+                </button>
+                <button onclick="document.getElementById('canal-panel').style.display='none';document.getElementById('overlay').style.display='none';resetButtons()"
+                        style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Cancel
+                </button>
+                <button id="canal-btn-delete" onclick="deleteCanal()"
+                        style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;
                     padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
-					🗑
-				</button>
-			</div>
-		</div>
-	</div>
-	<div id="wall-panel" style="display:none; position:fixed; top:50%; left:50%;
+                    🗑
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="wall-panel" style="display:none; position:fixed; top:50%; left:50%;
      transform:translate(-50%,-50%); background:#16213e; border:1px solid #78909c;
      border-radius:10px; padding:20px; z-index:1000; min-width:300px;
      box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-		<h3 style="color:#90a4ae; margin-bottom:16px; font-size:0.95rem;" id="wall-panel-title">New wall</h3>
-		<input type="hidden" id="wall-id" />
-		<input type="hidden" id="wall-geometry" />
-		<div style="display:flex;flex-direction:column;gap:10px;">
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Name</label>
-				<input id="wall-name" type="text" placeholder="e.g. Border wall"
-					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Thickness (cm)</label>
-				<input id="wall-thickness" type="number" min="1" max="200" value="20"
-					   style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
-			</div>
-			<div>
-				<label style="font-size:0.78rem;color:#888;">Material</label>
-				<select id="wall-material" style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
-					<option value="concrete">🔘 Concrete</option>
-					<option value="brick">🧱 Brick</option>
-					<option value="drywall">📋 Drywall</option>
-					<option value="stone">🪨 Stone</option>
-				</select>
-			</div>
-			<div style="display:flex;gap:8px;margin-top:6px;">
-				<button onclick="saveWall()" style="flex:1;background:#546e7a;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">Save</button>
-				<button onclick="document.getElementById('wall-panel').style.display='none';document.getElementById('overlay').style.display='none';resetButtons()"
-						style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
-					Cancel
-				</button>
-				<button id="wall-btn-delete" onclick="deleteWall()"
-						style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
-					🗑
-				</button>
-			</div>
-		</div>
-	</div>
+        <h3 style="color:#90a4ae; margin-bottom:16px; font-size:0.95rem;" id="wall-panel-title">New wall</h3>
+        <input type="hidden" id="wall-id" />
+        <input type="hidden" id="wall-geometry" />
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Name</label>
+                <input id="wall-name" type="text" placeholder="e.g. Border wall"
+                       style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Thickness (cm)</label>
+                <input id="wall-thickness" type="number" min="1" max="200" value="20"
+                       style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;" />
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:#888;">Material</label>
+                <select id="wall-material" style="width:100%;background:#0d1b2a;border:1px solid #2a3a5e;color:#eee;padding:7px 10px;border-radius:5px;font-size:0.85rem;margin-top:3px;">
+                    <option value="concrete">🔘 Concrete</option>
+                    <option value="brick">🧱 Brick</option>
+                    <option value="drywall">📋 Drywall</option>
+                    <option value="stone">🪨 Stone</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <button onclick="saveWall()" style="flex:1;background:#546e7a;color:#fff;border:none;padding:9px;border-radius:6px;cursor:pointer;">Save</button>
+                <button onclick="document.getElementById('wall-panel').style.display='none';document.getElementById('overlay').style.display='none';resetButtons()"
+                        style="flex:1;background:#2a3a5e;color:#eee;border:none;padding:9px;border-radius:6px;cursor:pointer;">
+                    Cancel
+                </button>
+                <button id="wall-btn-delete" onclick="deleteWall()"
+                        style="background:rgba(220,50,50,0.3);color:#ff6b6b;border:1px solid #ff4444;padding:9px 12px;border-radius:6px;cursor:pointer;display:none;">
+                    🗑
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

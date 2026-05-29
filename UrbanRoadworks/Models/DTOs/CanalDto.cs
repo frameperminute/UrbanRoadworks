@@ -4,6 +4,6 @@
     {
         public string? Name { get; set; }
         public string? Status { get; set; }
-        public string? Geometry { get; set; }  // WKT LINESTRING
+        public string? Geometry { get; set; }
     }
 }
