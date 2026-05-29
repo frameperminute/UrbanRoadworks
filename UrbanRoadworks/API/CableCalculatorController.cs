@@ -34,7 +34,7 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
 
         // 1. Canal length — ordered by user selection
         const string canalSql = @"
-            SELECT id, ST_Length(ST_Transform(geometry, 3857)) AS length_m
+            SELECT id, ST_Length(geometry::geography) AS length_m
             FROM canals WHERE id = ANY(@ids)
             ORDER BY array_position(@ids, id)";
 
@@ -53,15 +53,7 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
         const string wallSql = @"
             SELECT w.id, COALESCE(w.thickness, 20), COALESCE(w.material, 'default')
             FROM walls w
-            JOIN canals c ON ST_Intersects(
-                ST_Transform(w.geometry, 3857),
-                ST_Transform(c.geometry, 3857))
-            CROSS JOIN ST_Dump(
-                ST_Intersection(
-                    ST_Transform(w.geometry, 3857), 
-                    ST_Transform(c.geometry, 3857)
-                )
-            ) AS intersection_points
+            JOIN canals c ON ST_Intersects(w.geometry, c.geometry)
             WHERE c.id = @canalId";
 
         // 3. UTP nodes with full orientation:
@@ -73,7 +65,7 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
         const string nodesSql = @"
             WITH canal_lengths AS (
                 SELECT id,
-                       ST_Length(ST_Transform(geometry, 3857)) AS len,
+                       ST_Length(geometry::geography) AS len,
                        array_position(@ids, id) AS pos,
                        ST_Transform(geometry, 3857) AS geom3857
                 FROM canals

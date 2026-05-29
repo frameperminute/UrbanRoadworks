@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.IO;
+using NetTopologySuite.Geometries;
 using UrbanRoadworks.Data;
 using UrbanRoadworks.Models;
 using UrbanRoadworks.Models.DTOs;
@@ -43,7 +44,7 @@ namespace UrbanRoadworks.API
                 AssetType = dto.AssetType,
                 SiteId = dto.SiteId,
                 Geometry = dto.Geometry != null
-                    ? (NetTopologySuite.Geometries.Point)reader.Read(dto.Geometry)
+                    ? (Point)reader.Read(dto.Geometry)
                     : null
             };
             _context.RoadworkAssets.Add(asset);
@@ -63,7 +64,7 @@ namespace UrbanRoadworks.API
             if (!string.IsNullOrEmpty(dto.Geometry))
             {
                 var reader = new WKTReader();
-                asset.Geometry = (NetTopologySuite.Geometries.Point)reader.Read(dto.Geometry);
+                asset.Geometry = (Point)reader.Read(dto.Geometry);
             }
 
             _context.SaveChanges();

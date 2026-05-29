@@ -110,43 +110,34 @@ namespace UrbanRoadworks.API
             // Nodo più vicino al punto cliccato
             await using var cmdSource = new NpgsqlCommand(@"
                 SELECT id FROM road_network_noded_vertices
-                ORDER BY the_geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(@lon,@lat),4326),3857)
+                ORDER BY the_geom <-> ST_Transform(ST_Point(@lon, @lat, 4326), 3857)
                 LIMIT 1", conn);
             cmdSource.Parameters.AddWithValue("lon", lon);
             cmdSource.Parameters.AddWithValue("lat", lat);
             var sourceNode = (long)(await cmdSource.ExecuteScalarAsync() ?? 0L);
             if (sourceNode == 0) return Ok(Array.Empty<object>());
 
-            // Centroide di ogni cantiere → nodo più vicino nella rete
-            await using var cmdSites = new NpgsqlCommand(@"
-                SELECT id,
-                       ST_X(ST_Transform(ST_Centroid(geometry),4326)) AS cx,
-                       ST_Y(ST_Transform(ST_Centroid(geometry),4326)) AS cy
-                FROM roadwork_sites
-                WHERE geometry IS NOT NULL
-                AND status != 'completed'", conn);
-            var sites = new List<(int id, long node, double cx, double cy)>();
-            await using (var rdr = await cmdSites.ExecuteReaderAsync())
+            // Unica query per estrarre id cantiere e rispettivo nodo stradale più vicino
+            await using var cmdSitesAndNodes = new NpgsqlCommand(@"
+                SELECT rs.id, v.id 
+                FROM roadwork_sites rs
+                CROSS JOIN LATERAL (
+                    SELECT id FROM road_network_noded_vertices
+                    ORDER BY the_geom <-> ST_Transform(ST_Centroid(rs.geometry), 3857)
+                    LIMIT 1
+                ) v
+                WHERE rs.geometry IS NOT NULL AND rs.status != 'completed'", conn);
+
+            var targetNodes = new Dictionary<long, int>();
+            await using (var rdr = await cmdSitesAndNodes.ExecuteReaderAsync())
             {
                 while (await rdr.ReadAsync())
                 {
-                    sites.Add((rdr.GetInt32(0), 0, rdr.GetDouble(1), rdr.GetDouble(2)));
+                    var siteId = rdr.GetInt32(0);
+                    var node = rdr.GetInt64(1);
+                    if (node != 0 && node != sourceNode)
+                        targetNodes.TryAdd(node, siteId);
                 }
-            }
-
-            // Per ogni cantiere trova il nodo più vicino
-            var targetNodes = new Dictionary<long, int>(); // node → siteId
-            foreach (var (siteId, _, cx, cy) in sites)
-            {
-                await using var cmdNode = new NpgsqlCommand(@"
-                    SELECT id FROM road_network_noded_vertices
-                    ORDER BY the_geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(@lon,@lat),4326),3857)
-                    LIMIT 1", conn);
-                cmdNode.Parameters.AddWithValue("lon", cx);
-                cmdNode.Parameters.AddWithValue("lat", cy);
-                var node = (long)(await cmdNode.ExecuteScalarAsync() ?? 0L);
-                if (node != 0 && node != sourceNode)
-                    targetNodes.TryAdd(node, siteId);
             }
 
             if (targetNodes.Count == 0) return Ok(Array.Empty<object>());

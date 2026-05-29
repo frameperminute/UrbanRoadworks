@@ -6,9 +6,8 @@ namespace UrbanRoadworks.API
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class RouteController(ApplicationDbContext context, IConfiguration configuration) : ControllerBase
+    public class RouteController(IConfiguration configuration) : ControllerBase
     {
-        private readonly ApplicationDbContext _context = context;
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
         [HttpGet("route")]
@@ -21,8 +20,7 @@ namespace UrbanRoadworks.API
 
             const string nearestNodeSql = @"
                 SELECT id FROM road_network_noded_vertices
-                ORDER BY the_geom <-> ST_Transform(
-                    ST_SetSRID(ST_MakePoint(@lon, @lat), 4326), 3857)
+                ORDER BY the_geom <-> ST_Transform(ST_Point(@lon, @lat, 4326), 3857)
                 LIMIT 1";
 
             await using var cmdFrom = new NpgsqlCommand(nearestNodeSql, conn);
@@ -43,8 +41,6 @@ namespace UrbanRoadworks.API
                     SELECT DISTINCT r.id FROM road_network_noded r
                     JOIN roadwork_sites rs ON rs.status = 'active'
                     WHERE ST_Intersects(r.geom, ST_Transform(rs.geometry, 3857))
-                        OR ST_Within(ST_StartPoint(r.geom), ST_Transform(rs.geometry, 3857))
-                        OR ST_Within(ST_EndPoint(r.geom),   ST_Transform(rs.geometry, 3857))
                 )";
             await using var cmdBlocked = new NpgsqlCommand(blockedSql, conn);
             var blockedArray = (long[])(await cmdBlocked.ExecuteScalarAsync() ?? Array.Empty<long>());
@@ -54,8 +50,6 @@ namespace UrbanRoadworks.API
                     SELECT DISTINCT r.id FROM road_network_noded r
                     JOIN roadwork_sites rs ON rs.status = 'planned'
                     WHERE ST_Intersects(r.geom, ST_Transform(rs.geometry, 3857))
-                        OR ST_Within(ST_StartPoint(r.geom), ST_Transform(rs.geometry, 3857))
-                        OR ST_Within(ST_EndPoint(r.geom),   ST_Transform(rs.geometry, 3857))
                 )";
             await using var cmdSlowed = new NpgsqlCommand(slowedSql, conn);
             var slowedArray = (long[])(await cmdSlowed.ExecuteScalarAsync() ?? Array.Empty<long>());
@@ -117,11 +111,9 @@ namespace UrbanRoadworks.API
 
             const string centroidNodeSql = @"
                 SELECT v.id
-                FROM road_network_noded_vertices v
-                ORDER BY v.the_geom <-> ST_Transform(
-                    ST_Centroid((SELECT cs.geometry FROM roadwork_sites cs WHERE cs.id = @siteId)),
-                    3857
-                )
+                FROM road_network_noded_vertices v, roadwork_sites cs
+                WHERE cs.id = @siteId
+                ORDER BY v.the_geom <-> ST_Transform(ST_Centroid(cs.geometry), 3857)
                 LIMIT 1";
 
             var nodeIds = new List<long>();
@@ -150,7 +142,7 @@ namespace UrbanRoadworks.API
                 for (int j = 0; j < remaining.Count; j++)
                 {
                     const string costSql = @"
-                        SELECT MAX(agg_cost) FROM pgr_dijkstra(
+                        SELECT agg_cost FROM pgr_dijkstraCost(
                             'SELECT id, source, target,
                                 CASE WHEN oneway_reversed THEN -1 ELSE cost END AS cost,
                                 CASE WHEN oneway THEN -1 ELSE reverse_cost END AS reverse_cost
@@ -224,7 +216,7 @@ namespace UrbanRoadworks.API
 
                     segments.AddRange(legSegments);
                 }
-                catch (Npgsql.PostgresException ex) when (ex.SqlState == "XX000")
+                catch (PostgresException ex) when (ex.SqlState == "XX000")
                 {
                     return Ok(new { segments = Array.Empty<object>(), orderedSiteIds = siteIds });
                 }

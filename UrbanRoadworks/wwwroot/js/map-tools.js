@@ -328,12 +328,7 @@ function refreshCanalSelectionHighlight() {
     canalsSource.getFeatures().forEach(f => {
         if (selectedCanalIds.has(f.get('id'))) {
             cablePlanHighlightSource.addFeature(f.clone());
-            const coords = f.getGeometry().getCoordinates();
-            for (let i = 1; i < coords.length; i++) {
-                const dx = coords[i][0] - coords[i - 1][0];
-                const dy = coords[i][1] - coords[i - 1][1];
-                totalM += Math.sqrt(dx * dx + dy * dy);
-            }
+            totalM += ol.sphere.getLength(f.getGeometry());
         }
     });
     const info = document.getElementById('cable-selected-info');

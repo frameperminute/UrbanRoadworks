@@ -118,27 +118,20 @@ namespace UrbanRoadworks.API
             await conn.OpenAsync();
 
             const string sql = @"
-                    SELECT
-                        a.id                                            AS canal_a,
-                        b.id                                            AS canal_b,
-                        a.from_site,
-                        a.to_site,
-                        b.from_site                                     AS b_from_site,
-                        b.to_site                                       AS b_to_site,
-                        ROUND(CAST(
-                            ST_Distance(
-                                ST_Transform(a.geometry, 3857),
-                                ST_Transform(b.geometry, 3857)
-                            ) AS numeric
-                        ), 3)                                           AS distance_m
-                    FROM canals a
-                    JOIN canals b ON a.id < b.id
-                    WHERE ST_DWithin(
-                        ST_Transform(a.geometry, 3857),
-                        ST_Transform(b.geometry, 3857),
-                        0.5
-                    )
-                    ORDER BY distance_m";
+                SELECT
+                    a.id                                            AS canal_a,
+                    b.id                                            AS canal_b,
+                    a.from_site,
+                    a.to_site,
+                    b.from_site                                     AS b_from_site,
+                    b.to_site                                       AS b_to_site,
+                    ROUND(CAST(
+                        ST_Distance(a.geometry::geography, b.geometry::geography) AS numeric
+                    ), 3)                                           AS distance_m
+                FROM canals a
+                JOIN canals b ON a.id < b.id
+                WHERE ST_DWithin(a.geometry::geography, b.geometry::geography, 0.5)
+                ORDER BY distance_m";
 
             var edges = new List<object>();
 

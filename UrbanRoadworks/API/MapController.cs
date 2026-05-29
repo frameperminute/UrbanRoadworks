@@ -6,9 +6,8 @@ namespace UrbanRoadworks.API
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class MapController(ApplicationDbContext context, IConfiguration configuration) : ControllerBase
+    public class MapController(IConfiguration configuration) : ControllerBase
     {
-        private readonly ApplicationDbContext _context = context;
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
         // all roads of road_network (grey base layer)
@@ -70,7 +69,6 @@ namespace UrbanRoadworks.API
                     JOIN roadwork_sites rs
                         ON ST_Intersects(rn.geom, ST_Transform(rs.geometry, 3857))
                     WHERE rs.status IN ('active', 'planned')
-                      AND NOT ST_IsEmpty(ST_Intersection(rn.geom, ST_Transform(rs.geometry, 3857)))
                     ORDER BY rn.id, rs.status";
 
                 await using var cmd = new NpgsqlCommand(sql, conn);
