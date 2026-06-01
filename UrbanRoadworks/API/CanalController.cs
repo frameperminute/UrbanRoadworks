@@ -15,6 +15,7 @@ namespace UrbanRoadworks.API
         private readonly ApplicationDbContext _context = context;
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
+        // Returns all cable canals as WKT linestrings. Optional filter: ?status=planned
         [HttpGet("canals")]
         public IActionResult GetCanals([FromQuery] string? status = null)
         {
@@ -36,6 +37,9 @@ namespace UrbanRoadworks.API
             return Ok(result);
         }
 
+        // Creates a new canal from a WKT linestring.
+        // FromSite and ToSite are automatically resolved by checking which construction site
+        // intersects the start/end point of the drawn line.
         [HttpPost("canals")]
         public IActionResult CreateCanal([FromBody] CanalDto dto)
         {
@@ -48,7 +52,7 @@ namespace UrbanRoadworks.API
             if (line != null)
             {
                 line.SRID = 4326;
-                // Calcolo automatico: trova il sito che interseca il punto di inizio e quello di fine
+
                 autoFromSite = _context.RoadworkSites
                     .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(line.StartPoint))?.Id;
 
@@ -60,8 +64,8 @@ namespace UrbanRoadworks.API
             {
                 Name = dto.Name,
                 Status = dto.Status ?? "planned",
-                FromSite = autoFromSite, // Assegnato in automatico
-                ToSite = autoToSite,     // Assegnato in automatico
+                FromSite = autoFromSite,
+                ToSite = autoToSite,
                 Geometry = line
             };
 
@@ -70,6 +74,8 @@ namespace UrbanRoadworks.API
             return Ok(new { canal.Id, canal.Name, canal.Status });
         }
 
+        // Updates canal name and status. If geometry changes (planned only),
+        // FromSite/ToSite are recalculated automatically from the new start/end points.
         [HttpPut("canals/{id}")]
         public IActionResult UpdateCanal(int id, [FromBody] CanalDto dto)
         {
@@ -88,7 +94,6 @@ namespace UrbanRoadworks.API
                 line.SRID = 4326;
                 canal.Geometry = line;
 
-                // Ricalcolo automatico dei siti in base alla nuova geometria
                 canal.FromSite = _context.RoadworkSites
                     .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(line.StartPoint))?.Id;
 
@@ -100,6 +105,7 @@ namespace UrbanRoadworks.API
             return Ok(new { canal.Id, canal.Name, canal.Status });
         }
 
+        // Permanently removes the canal from the database
         [HttpDelete("canals/{id}")]
         public IActionResult DeleteCanal(int id)
         {
@@ -109,8 +115,11 @@ namespace UrbanRoadworks.API
             _context.SaveChanges();
             return Ok();
         }
-        // GET /api/canal/topology
-        // Restituisce le coppie di canali connessi (entro 0.5 m) — utile per debug
+
+        // Debug endpoint: returns all pairs of canals within 0.5 m of each other.
+        // SQL: self-join on canals with ST_DWithin to detect topological connections;
+        //      a.id < b.id avoids returning each pair twice;
+        //      ST_Distance gives the exact geographic distance in metres
         [HttpGet("topology")]
         public async Task<IActionResult> GetTopology()
         {

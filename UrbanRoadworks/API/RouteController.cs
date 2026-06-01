@@ -10,6 +10,8 @@ namespace UrbanRoadworks.API
     {
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
+        // Calculates the shortest driveable route from point A to point B,
+        // avoiding roads blocked by active sites and penalising roads near planned sites.
         [HttpGet("route")]
         public async Task<IActionResult> GetRoute(
             [FromQuery] double fromLon, [FromQuery] double fromLat,
@@ -18,6 +20,7 @@ namespace UrbanRoadworks.API
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
+            // SQL: finds the road network vertex nearest to the given coordinate (k-nearest neighbor search)
             const string nearestNodeSql = @"
                 SELECT id FROM road_network_noded_vertices
                 ORDER BY the_geom <-> ST_Transform(ST_Point(@lon, @lat, 4326), 3857)
@@ -36,6 +39,8 @@ namespace UrbanRoadworks.API
             if (sourceNode == 0 || targetNode == 0)
                 return Ok(Array.Empty<object>());
 
+            // SQL: collects the IDs of all road segments intersecting active sites —
+            // these will be excluded entirely from the routing graph
             const string blockedSql = @"
                 SELECT ARRAY(
                     SELECT DISTINCT r.id FROM road_network_noded r
@@ -45,6 +50,8 @@ namespace UrbanRoadworks.API
             await using var cmdBlocked = new NpgsqlCommand(blockedSql, conn);
             var blockedArray = (long[])(await cmdBlocked.ExecuteScalarAsync() ?? Array.Empty<long>());
 
+            // SQL: collects the IDs of road segments intersecting planned sites —
+            // their cost is multiplied by 5 to discourage (but not forbid) their use
             const string slowedSql = @"
                 SELECT ARRAY(
                     SELECT DISTINCT r.id FROM road_network_noded r
@@ -57,6 +64,10 @@ namespace UrbanRoadworks.API
             var blockedIds = blockedArray.Length > 0 ? string.Join(",", blockedArray) : "0";
             var slowedIds = slowedArray.Length > 0 ? string.Join(",", slowedArray) : "0";
 
+            // SQL: runs pgr_dijkstra with dynamic cost overrides:
+            //   - blocked segments are excluded via WHERE NOT IN (...)
+            //   - slowed segments get cost * 5
+            //   - oneway/reversed edges get cost = -1 (forbidden direction)
             var routeSql = $@"
                 SELECT rn.id,
                        ST_AsText(ST_Transform(rn.geom, 4326)) AS geometry,
@@ -94,12 +105,14 @@ namespace UrbanRoadworks.API
                 }
                 return Ok(results);
             }
-            catch (Npgsql.PostgresException ex) when (ex.SqlState == "XX000")
+            catch (PostgresException ex) when (ex.SqlState == "XX000")
             {
                 return Ok(Array.Empty<object>());
             }
         }
 
+        // Calculates the optimal inspection tour visiting all selected sites,
+        // using a nearest-neighbour greedy heuristic starting from the chosen site.
         [HttpPost("inspector-route")]
         public async Task<IActionResult> InspectorRoute([FromBody] List<int> siteIds)
         {
@@ -109,6 +122,7 @@ namespace UrbanRoadworks.API
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
+            // SQL: finds the road vertex nearest to the centroid of a given construction site
             const string centroidNodeSql = @"
                 SELECT v.id
                 FROM road_network_noded_vertices v, roadwork_sites cs
@@ -141,6 +155,8 @@ namespace UrbanRoadworks.API
 
                 for (int j = 0; j < remaining.Count; j++)
                 {
+                    // SQL: estimates the road cost between two vertices using pgr_dijkstraCost
+                    // (used inside the nearest-neighbour loop to pick the cheapest next site)
                     const string costSql = @"
                         SELECT agg_cost FROM pgr_dijkstraCost(
                             'SELECT id, source, target,
@@ -179,6 +195,7 @@ namespace UrbanRoadworks.API
             {
                 if (nodeIds[i] == nodeIds[i + 1]) continue;
 
+                // SQL: retrieves the actual road geometry for one leg of the tour (source -> target)
                 var segSql = @"
                     SELECT rn.id,
                            ST_AsText(ST_Transform(rn.geom, 4326)) AS geometry,

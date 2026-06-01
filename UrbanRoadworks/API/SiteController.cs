@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.IO;
 using Npgsql;
+using NetTopologySuite.Geometries;
 using UrbanRoadworks.Data;
 using UrbanRoadworks.Models;
 using UrbanRoadworks.Models.DTOs;
@@ -14,8 +15,7 @@ namespace UrbanRoadworks.API
         private readonly ApplicationDbContext _context = context;
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
-        // all construction sites (polygons)
-        // Optional parameter: ?status=active
+        // Returns all construction sites as WKT polygons. Optional filter: ?status=active
         [HttpGet("sites")]
         public IActionResult GetSites([FromQuery] string? status = null)
         {
@@ -38,6 +38,7 @@ namespace UrbanRoadworks.API
             return Ok(result);
         }
 
+        // Creates a new construction site from a WKT polygon
         [HttpPost("sites")]
         public IActionResult CreateSite([FromBody] RoadworkSiteDto dto)
         {
@@ -49,7 +50,7 @@ namespace UrbanRoadworks.API
                 StartDate = dto.StartDate,
                 EndDate = dto.EndDate,
                 Geometry = dto.Geometry != null
-                    ? (NetTopologySuite.Geometries.Polygon)reader.Read(dto.Geometry)
+                    ? (Polygon)reader.Read(dto.Geometry)
                     : null
             };
             _context.RoadworkSites.Add(site);
@@ -57,7 +58,8 @@ namespace UrbanRoadworks.API
             return Ok(new { site.Id, site.Name, site.Status });
         }
 
-        // updates construction site status
+        // Updates site metadata and optionally its geometry (only allowed for planned sites).
+        // When status is set to 'completed', all linked assets are automatically removed.
         [HttpPut("sites/{id}")]
         public IActionResult UpdateSite(int id, [FromBody] RoadworkSiteDto dto)
         {
@@ -75,7 +77,7 @@ namespace UrbanRoadworks.API
             if (dto.Geometry != null)
             {
                 var reader = new WKTReader();
-                site.Geometry = (NetTopologySuite.Geometries.Polygon)reader.Read(dto.Geometry);
+                site.Geometry = (Polygon)reader.Read(dto.Geometry);
             }
 
             if (dto.Status == "completed")
@@ -90,7 +92,7 @@ namespace UrbanRoadworks.API
             return Ok(new { site.Id, site.Name, site.Status });
         }
 
-        // deletes construction site
+        // Permanently removes the site from the database
         [HttpDelete("sites/{id}")]
         public IActionResult DeleteSite(int id)
         {
@@ -101,13 +103,15 @@ namespace UrbanRoadworks.API
             return Ok();
         }
 
+        // Returns the N nearest construction sites to a clicked point, ranked by road distance.
         [HttpGet("nearest-by-road")]
         public async Task<IActionResult> GetNearestByRoad([FromQuery] double lon, [FromQuery] double lat, [FromQuery] int n = 3)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            // Nodo più vicino al punto cliccato
+            // SQL: finds the road network vertex nearest to the clicked point (EPSG:4326 -> 3857)
+            // using the <-> k-Nearest Neighbors operator for efficient index-based search
             await using var cmdSource = new NpgsqlCommand(@"
                 SELECT id FROM road_network_noded_vertices
                 ORDER BY the_geom <-> ST_Transform(ST_Point(@lon, @lat, 4326), 3857)
@@ -117,7 +121,8 @@ namespace UrbanRoadworks.API
             var sourceNode = (long)(await cmdSource.ExecuteScalarAsync() ?? 0L);
             if (sourceNode == 0) return Ok(Array.Empty<object>());
 
-            // Unica query per estrarre id cantiere e rispettivo nodo stradale più vicino
+            // SQL: for each non-completed site, finds the nearest road vertex to its centroid
+            // using CROSS JOIN LATERAL to apply the nearest-neighbour search per row
             await using var cmdSitesAndNodes = new NpgsqlCommand(@"
                 SELECT rs.id, v.id 
                 FROM roadwork_sites rs
@@ -144,7 +149,8 @@ namespace UrbanRoadworks.API
 
             var targets = string.Join(",", targetNodes.Keys);
 
-            // Dijkstra da source verso tutti i target
+            // SQL: runs pgr_dijkstraCost from the source node to all site nodes in one call,
+            // returns the N cheapest paths ordered by accumulated cost
             await using var cmdDijk = new NpgsqlCommand($@"
                 SELECT end_vid, agg_cost
                 FROM pgr_dijkstraCost(

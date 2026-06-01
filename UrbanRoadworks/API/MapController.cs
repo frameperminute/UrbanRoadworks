@@ -10,7 +10,7 @@ namespace UrbanRoadworks.API
     {
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
-        // all roads of road_network (grey base layer)
+        // Returns all road network segments (grey base layer) with WKT geometry in EPSG:4326.
         [HttpGet("roads")]
         public async Task<IActionResult> GetRoads()
         {
@@ -19,6 +19,7 @@ namespace UrbanRoadworks.API
                 await using var conn = new NpgsqlConnection(_connectionString);
                 await conn.OpenAsync();
 
+                // Selects all rows from road_network, converting geometry from 3857 -> 4326
                 var sql = @"SELECT id, osm_id, name, highway,
                            ST_AsText(ST_Transform(geom, 4326)) AS geometry
                     FROM road_network";
@@ -45,7 +46,8 @@ namespace UrbanRoadworks.API
             }
         }
 
-        // only road_network roads that intersect active/planned construction sites
+        // Returns only the road segments that intersect active or planned construction sites,
+        // clipped to the intersection area, with the site status attached.
         [HttpGet("affected-network-roads")]
         public async Task<IActionResult> GetAffectedNetworkRoads()
         {
@@ -54,6 +56,9 @@ namespace UrbanRoadworks.API
                 await using var conn = new NpgsqlConnection(_connectionString);
                 await conn.OpenAsync();
 
+                // SQL: DISTINCT ON (rn.id) avoids duplicate roads when a segment crosses multiple sites;
+                //      ST_Intersection clips the geometry to the exact overlap;
+                //      ORDER BY status ensures 'active' is preferred over 'planned' when deduplicating
                 var sql = @"
                     SELECT DISTINCT ON (rn.id)
                         rn.id,

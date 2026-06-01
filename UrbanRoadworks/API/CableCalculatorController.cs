@@ -17,6 +17,8 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
             { "drywall",  0.5 }, { "wood",  0.3 }, { "default", 1.0 }
         };
 
+    // Calculates the full cable installation plan for the given canal IDs.
+    // Returns: total cable length, UTP segment count, node positions, wall drill data, and total work time.
     [HttpGet("calculate")]
     public async Task<IActionResult> Calculate([FromQuery] string canalIds)
     {
@@ -50,6 +52,8 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
         if (canals.Count == 0) return NotFound("No canals found.");
 
         // 2. Walls for each canal
+        //      ST_NumGeometries on the intersection's point collection counts
+        //      how many times the cable actually crosses the wall (crossingCount)
         const string wallSql = @"
             SELECT
                 w.id,
@@ -66,12 +70,17 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
             JOIN canals c ON ST_Intersects(w.geometry, c.geometry)
             WHERE c.id = @canalId";
 
-        // 3. UTP nodes with full orientation:
-        //    - For canals after the first: orient so that ST_StartPoint is closest
-        //      to ST_EndPoint of the previous canal (same as before).
-        //    - For the first canal: orient so that ST_EndPoint is closest to
-        //      ST_StartPoint of the next canal — guaranteeing the first node
-        //      is placed 100 m from the FREE end of the first canal, not the junction.
+        // 3. UTP nodes with full orientation: places a UTP node every 100 m along the concatenated canal path.
+        // The CTE pipeline:
+        //   canal_lengths  — computes length and position of each canal in the sequence
+        //   oriented       — flips canal geometry if needed so all segments flow in the
+        //                    same direction (first canal: END faces next; others: START
+        //                    continues from previous END)
+        //   cumulative     — computes cumulative start/end distances along the full path
+        //   total          — total path length, used to generate node distances
+        //   node_distances — generates one row per 100 m step
+        // Final SELECT: maps each node distance to the correct canal segment and
+        // interpolates the geographic coordinate using ST_LineInterpolatePoint
         const string nodesSql = @"
             WITH canal_lengths AS (
                 SELECT id,

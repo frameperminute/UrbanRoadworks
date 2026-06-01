@@ -13,6 +13,7 @@ namespace UrbanRoadworks.API
     {
         private readonly ApplicationDbContext _context = context;
 
+        // Returns all walls as WKT linestrings
         [HttpGet("walls")]
         public IActionResult GetWalls([FromQuery] int? siteId = null)
         {
@@ -34,6 +35,7 @@ namespace UrbanRoadworks.API
             return Ok(result);
         }
 
+        // Creates a new wall from a WKT linestring with thickness (cm) and material
         [HttpPost("walls")]
         public IActionResult CreateWall([FromBody] WallDto dto)
         {
@@ -44,7 +46,7 @@ namespace UrbanRoadworks.API
             if (geom != null)
             {
                 geom.SRID = 4326;
-                // Calcolo automatico: trova il sito in cui è disegnato il muro
+
                 autoSiteId = _context.RoadworkSites
                     .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(geom))?.Id;
             }
@@ -63,6 +65,7 @@ namespace UrbanRoadworks.API
             return Ok(new { wall.Id, wall.SiteId, wall.Thickness, wall.Material });
         }
 
+        // Updates wall name, thickness, material, and optionally geometry
         [HttpPut("walls/{id}")]
         public IActionResult UpdateWall(int id, [FromBody] WallDto dto)
         {
@@ -80,7 +83,6 @@ namespace UrbanRoadworks.API
                 geom.SRID = 4326;
                 wall.Geometry = (LineString)geom;
 
-                // Ricalcolo automatico del sito in base alla nuova geometria
                 wall.SiteId = _context.RoadworkSites
                     .FirstOrDefault(s => s.Geometry != null && s.Geometry.Intersects(geom))?.Id;
             }
@@ -89,6 +91,7 @@ namespace UrbanRoadworks.API
             return Ok(new { wall.Id, wall.SiteId, wall.Thickness, wall.Material });
         }
 
+        // Permanently removes the wall from the database
         [HttpDelete("walls/{id}")]
         public IActionResult DeleteWall(int id)
         {

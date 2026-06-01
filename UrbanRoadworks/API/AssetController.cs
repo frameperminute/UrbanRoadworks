@@ -13,10 +13,12 @@ namespace UrbanRoadworks.API
     {
         private readonly ApplicationDbContext _context = context;
 
-        // asset points (traffic lights, signals)
+        // Returns all roadwork assets (traffic lights, signs, etc.) as WKT.
+        // Optional filter: ?assetType=temporary_traffic_light
         [HttpGet("assets")]
         public IActionResult GetAssets([FromQuery] string? assetType = null)
         {
+            // Filters by assetType if provided, otherwise returns all assets
             var query = _context.RoadworkAssets.AsQueryable();
 
             if (!string.IsNullOrEmpty(assetType))
@@ -34,7 +36,7 @@ namespace UrbanRoadworks.API
             return Ok(result);
         }
 
-        // create new asset
+        // Creates a new roadwork asset from a WKT point geometry
         [HttpPost("assets")]
         public IActionResult CreateAsset([FromBody] RoadworkAssetDto dto)
         {
@@ -52,7 +54,7 @@ namespace UrbanRoadworks.API
             return Ok(new { asset.Id, asset.AssetType, asset.SiteId });
         }
 
-        // updates type and associated construction site
+        // Updates asset type and associated construction site; optionally updates geometry
         [HttpPut("assets/{id}")]
         public IActionResult UpdateAsset(int id, [FromBody] RoadworkAssetDto dto)
         {
@@ -71,7 +73,7 @@ namespace UrbanRoadworks.API
             return Ok(new { asset.Id, asset.AssetType, asset.SiteId });
         }
 
-        // delete asset
+        // Permanently removes the asset from the database
         [HttpDelete("assets/{id}")]
         public IActionResult DeleteAsset(int id)
         {
