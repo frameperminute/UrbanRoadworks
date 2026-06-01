@@ -1,4 +1,5 @@
-﻿function startDrawSite() {
+﻿// Activates polygon draw interaction; on completion opens the site edit panel
+function startDrawSite() {
     resetButtons();
     const btn = document.getElementById('btn-add');
     btn.textContent = '🖊 Draw the perimeter...';
@@ -30,6 +31,7 @@
     map.addInteraction(drawSite);
 }
 
+// Activates point draw interaction; on completion opens the asset edit panel
 function startDrawAsset() {
     resetButtons();
     map.getTargetElement().style.cursor = 'crosshair';
@@ -63,6 +65,8 @@ function startDrawAsset() {
     map.addInteraction(drawAsset);
 }
 
+// Snaps the start/end of a new canal to the nearest existing canal endpoint
+// within SNAP_TOLERANCE_M meters (EPSG:3857 units)
 function snapCanalEndpoints(coords) {
     const SNAP_TOLERANCE_M = 1.0;
     let start = [...coords[0]];
@@ -85,6 +89,7 @@ function snapCanalEndpoints(coords) {
     return snapped;
 }
 
+// Activates LineString draw interaction for canals; snaps endpoints on completion
 function startDrawCanal() {
     resetButtons();
     const btn = document.querySelector('[onclick="startDrawCanal()"]');
@@ -118,6 +123,7 @@ function startDrawCanal() {
     map.addInteraction(drawCanal);
 }
 
+// Activates LineString draw interaction for walls
 function startDrawWall() {
     resetButtons();
     const btn = document.querySelector('[onclick="startDrawWall()"]');
@@ -150,6 +156,7 @@ function startDrawWall() {
 
 let routeFrom = null, routeTo = null, pickMode = null, routeLayer = null;
 
+// Enters point-pick mode for route A -> B; type is 'from' or 'to'
 function startPickPoint(type) {
     resetButtons();
     if (type === 'from') {
@@ -175,6 +182,7 @@ function startPickPoint(type) {
     map.getTargetElement().style.cursor = 'crosshair';
 }
 
+// Clears the A -> B route layer, markers, and UI state
 function clearRoute() {
     pickMode = null; routeFrom = null; routeTo = null;
     routeMarkersSource.clear();
@@ -188,6 +196,7 @@ function clearRoute() {
     map.getTargetElement().style.cursor = '';
 }
 
+// Calls the route API and renders the result as a green polyline on the map
 async function calculateRouteAB() {
     if (!routeFrom || !routeTo) return;
     document.getElementById('btn-route').textContent = '⏳ Computing...';
@@ -221,6 +230,7 @@ async function calculateRouteAB() {
 const legColors = ['#a86fdf', '#ff6b6b', '#fdab43', '#4f98a3', '#5591c7', '#6daa45'];
 let inspectorLayer = null;
 
+// Calls the inspector tour API and renders each leg in a different color (dashed)
 async function calculateInspectorTour() {
     const startId = parseInt(document.getElementById('inspector-start').value);
     if (!startId) { alert('Select the construction site to start'); return; }
@@ -278,6 +288,7 @@ async function calculateInspectorTour() {
     }
 }
 
+// Clears the inspector tour layer and resets the UI
 function clearInspectorTour() {
     if (inspectorLayer) { map.removeLayer(inspectorLayer); inspectorLayer = null; }
     document.getElementById('tour-info').style.display = 'none';
@@ -287,6 +298,7 @@ function clearInspectorTour() {
 const selectedCanalIds = new Set();
 let cablePlanMode = false;
 
+// Updates the canal selection highlight layer and the selected-count/meters UI
 function refreshCanalSelectionHighlight() {
     cablePlanHighlightSource.clear();
     let totalM = 0;
@@ -306,6 +318,7 @@ function refreshCanalSelectionHighlight() {
     }
 }
 
+// Calls the cable calculator API with selected canal IDs and renders the plan
 async function calculateCablePlan() {
     if (selectedCanalIds.size === 0) { alert('Select at least one canal by clicking on the map.'); return; }
     const ids = Array.from(selectedCanalIds).join(',');
@@ -321,6 +334,8 @@ async function calculateCablePlan() {
     } catch (e) { alert('Error: ' + e.message); }
 }
 
+// Renders the cable plan result: summary, canal segments, wall drill list,
+// and node markers on the map. Wall thickness/time are multiplied by crossingCount.
 function renderCablePlan(plan) {
     document.getElementById('cr-meters').textContent = plan.totalCableMeters.toFixed(1) + ' m';
     document.getElementById('cr-segments').textContent = plan.utpSegmentsCount;
@@ -366,6 +381,7 @@ function renderCablePlan(plan) {
     });
 }
 
+// Clears cable plan results, highlights, and node markers
 function clearCablePlan() {
     selectedCanalIds.clear();
     cablePlanHighlightSource.clear();
@@ -374,6 +390,7 @@ function clearCablePlan() {
     document.getElementById('cable-results').style.display = 'none';
 }
 
+// Formats minutes into "Xh Ymin" or "Y min" string for display
 function formatCableTime(mins) {
     if (!mins) return '0 min';
     if (mins < 60) return mins + ' min';

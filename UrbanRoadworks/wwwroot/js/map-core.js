@@ -1,4 +1,6 @@
-﻿let allSites = [];
+﻿// --- GLOBAL STATE ---
+// Shared data arrays populated by loadAllData(), used across all modules
+let allSites = [];
 let allAssets = [];
 let allAffectedRoads = [];
 let allCanals = [];
@@ -15,6 +17,8 @@ let modifyCanalInteraction = null;
 let modifyWallInteraction = null;
 let dragBoxInteraction = null;
 
+// --- VECTOR SOURCES & LAYERS ---
+// One source/layer pair per feature type; zIndex controls draw order
 const cableNodesSource = new ol.source.Vector();
 const sitesSource = new ol.source.Vector();
 const assetsSource = new ol.source.Vector();
@@ -164,6 +168,9 @@ const affectedRoadsLayer = new ol.layer.Vector({
     },
     zIndex: 4
 });
+
+// --- STYLE FUNCTIONS ---
+// Returns an OpenLayers Style based on feature properties (status, type, selection state)
 function siteStyle(feature) {
     const status = feature.get('status');
     const colors = {
@@ -208,6 +215,8 @@ function assetStyle(feature) {
     });
 }
 
+// --- MAP INITIALIZATION ---
+// OpenLayers map centered on the project area with OSM base layer
 const map = new ol.Map({
     target: 'map',
     layers: [

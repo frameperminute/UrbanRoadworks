@@ -1,4 +1,7 @@
 ﻿const popup = document.getElementById('popup');
+
+// Main click handler: dispatches to canal select, route pick, nearest query,
+// or feature popup depending on the active mode
 map.on('click', async function (evt) {
     if (modes.canalSelect && modes.canalSelect.active) {
         const feature = map.forEachFeatureAtPixel(evt.pixel, f => f, { layerFilter: l => l === canalsLayer });
@@ -78,7 +81,7 @@ map.on('click', async function (evt) {
     if (feature) {
         const props = feature.getProperties();
         let html = '';
-        if (modes.editSite.active && props.id && props.status && !props.assetType) { openEditPanel(props); return; }
+        if (modes.editSite.active && props.id && props.status && !props.assetType) { openSiteEditPanel(props); return; }
         if (modes.editAsset.active && props.id && props.assetType) { openAssetEditPanel(props); return; }
         if (modes.editCanal.active && props.id && props.status && !props.assetType && !props.siteStatus) { openCanalEditPanel(props); return; }
         if (modes.editWall.active && props.id && props.thickness !== undefined) { openWallEditPanel(props); return; }
@@ -108,12 +111,14 @@ map.on('click', async function (evt) {
     popup.style.display = 'none';
 });
 
+// Updates cursor to pointer when hovering over a feature (skipped during active modes)
 map.on('pointermove', function (evt) {
     const anyActive = Object.values(modes).some(m => m.active);
     if (pickMode || anyActive) return;
     map.getTargetElement().style.cursor = map.hasFeatureAtPixel(evt.pixel) ? 'pointer' : '';
 });
 
+// Opens the asset edit panel pre-filled with the clicked asset's properties
 function openAssetEditPanel(props) {
     document.getElementById('asset-panel-title').textContent = 'Edit asset';
     document.getElementById('asset-id').value = props.id || '';
@@ -125,6 +130,7 @@ function openAssetEditPanel(props) {
     document.getElementById('overlay').style.display = 'block';
 }
 
+// Opens the canal edit panel pre-filled with the clicked canal's properties
 function openCanalEditPanel(props) {
     document.getElementById('canal-panel-title').textContent = 'Edit canal';
     document.getElementById('canal-id').value = props.id || '';
@@ -136,6 +142,7 @@ function openCanalEditPanel(props) {
     document.getElementById('overlay').style.display = 'block';
 }
 
+// Opens the wall edit panel pre-filled with the clicked wall's properties
 function openWallEditPanel(props) {
     document.getElementById('wall-panel-title').textContent = 'Edit wall';
     document.getElementById('wall-id').value = props.id || '';
@@ -148,7 +155,8 @@ function openWallEditPanel(props) {
     document.getElementById('overlay').style.display = 'block';
 }
 
-function openEditPanel(props) {
+// Opens the construction site edit panel pre-filled with the clicked site's properties
+function openSiteEditPanel(props) {
     document.getElementById('panel-title').textContent = 'Edit site';
     document.getElementById('edit-id').value = props.id || '';
     document.getElementById('edit-name').value = props.name || '';
@@ -161,6 +169,7 @@ function openEditPanel(props) {
     document.getElementById('overlay').style.display = 'block';
 }
 
+// Populates the asset -> site dropdown with active/planned sites; pre-selects selectedId
 function populateSiteDropdown(selectedId = null) {
     const select = document.getElementById('asset-site-id');
     select.innerHTML = '<option value="">— none —</option>';
@@ -175,6 +184,7 @@ function populateSiteDropdown(selectedId = null) {
     });
 }
 
+// Populates the inspector panel: start-site dropdown + checkboxes for sites to visit
 function populateInspectorPanel() {
     const startSelect = document.getElementById('inspector-start');
     const listDiv = document.getElementById('inspector-sites-list');
@@ -196,8 +206,10 @@ function populateInspectorPanel() {
     });
 }
 
+// Returns true if the checkbox with the given id is checked (defaults to true if missing)
 function isChecked(id) { return document.getElementById(id)?.checked ?? true; }
 
+// Highlights all features within the drag-box extent and shows counts in the info panel
 function applyAreaFilter(extent) {
     queryHighlightSource.clear();
     let nSites = 0, nAssets = 0, nCanals = 0;
@@ -213,12 +225,14 @@ function applyAreaFilter(extent) {
     deactivateMode('queryArea');
 }
 
+// Clears the area query highlight and hides the info panel
 function clearQueryArea() {
     queryHighlightSource.clear();
     document.getElementById('query-info').style.display = 'none';
     document.getElementById('btn-clear-query').style.display = 'none';
 }
 
+// Filters all feature sources by the current checkbox state and updates the counters
 function applyFilters() {
     const activeSites = allSites.filter(s => {
         if (s.status === 'active' && !isChecked('filter-sites-active')) return false;
@@ -253,6 +267,8 @@ function applyFilters() {
     document.getElementById('cnt-canals').textContent = activeCanals.length;
 }
 
+// Mode registry: each entry defines button IDs, labels, styles, cursor,
+// and optional onActivate/onDeactivate callbacks (used for OpenLayers interactions)
 const modes = {
     canalSelect: { active: false, btnId: 'btn-canal-select', onText: '🖱️ Selecting… click to stop', offText: '🖱️ Select canals', onStyle: { background: '#1a80e5', color: '#fff', border: '1px solid #1a80e5' }, offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #1a80e5' }, cursor: 'crosshair', onActivate: null, onDeactivate: null },
     editWall: { active: false, btnId: 'btn-edit-wall', onText: '✏️ Wall ON — click a wall', offText: '✏️ Edit wall', onStyle: { background: '#78909c', color: '#fff', border: '1px solid #78909c' }, offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #78909c' }, cursor: 'crosshair', onActivate: null, onDeactivate: null },
@@ -347,6 +363,8 @@ const modes = {
     queryNearest: { active: false, btnId: 'btn-query-nearest', onText: '📍 Click a point on the map...', offText: '📍 N nearest sites', onStyle: { background: '#dd6974', color: '#fff', border: '1px solid #dd6974' }, offStyle: { background: '#2a3a5e', color: '#eee', border: '1px solid #dd6974' }, cursor: 'crosshair', onActivate: null, onDeactivate: null },
 };
 
+
+// Activates the given mode (deactivating any other active mode first); toggles off if already active
 function activateMode(key) {
     Object.keys(modes).forEach(k => { if (k !== key && modes[k].active) deactivateMode(k); });
     const mode = modes[key];
@@ -358,6 +376,7 @@ function activateMode(key) {
     if (mode.onActivate) mode.onActivate();
 }
 
+// Deactivates the given mode: resets button style, cursor, and OL interaction
 function deactivateMode(key) {
     const mode = modes[key];
     if (!mode.active) return;
@@ -368,7 +387,7 @@ function deactivateMode(key) {
     if (mode.onDeactivate) mode.onDeactivate();
 }
 
-function toggleEditMode() { activateMode('editSite'); }
+function toggleSiteEditMode() { activateMode('editSite'); }
 function toggleAssetEditMode() { activateMode('editAsset'); }
 function toggleMoveAssetMode() { activateMode('moveAsset'); }
 function toggleCanalEditMode() { activateMode('editCanal'); }

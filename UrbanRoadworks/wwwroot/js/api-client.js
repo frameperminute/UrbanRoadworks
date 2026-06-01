@@ -1,5 +1,6 @@
 ﻿const format = new ol.format.WKT();
 
+// Parses a list of items with WKT geometry into OpenLayers Feature objects (EPSG:4326 -> 3857)
 function parseFeatures(items) {
     return items.map(item => {
         const geoKey = Object.keys(item).find(k => k.toLowerCase() === 'geometry');
@@ -20,6 +21,7 @@ function parseFeatures(items) {
     }).filter(f => f !== null);
 }
 
+// Saves a new or existing construction site via POST/PUT, then reloads all data
 async function saveChanges() {
     const id = document.getElementById('edit-id').value;
     const geometry = document.getElementById('edit-geometry').value;
@@ -46,6 +48,7 @@ async function saveChanges() {
     await loadAllData();
 }
 
+// Deletes the selected construction site after confirmation, then reloads all data
 async function deleteSite() {
     const id = document.getElementById('edit-id').value;
     if (!id || !confirm('Delete this site?')) return;
@@ -56,6 +59,7 @@ async function deleteSite() {
     await loadAllData();
 }
 
+// Saves a new or existing asset (traffic light, sign, etc.) via POST/PUT
 async function saveAsset() {
     const id = document.getElementById('asset-id').value;
     const body = {
@@ -72,6 +76,7 @@ async function saveAsset() {
     await loadAllData();
 }
 
+// Deletes the selected asset after confirmation
 async function deleteAsset() {
     const id = document.getElementById('asset-id').value;
     if (!id || !confirm('Remove this asset?')) return;
@@ -82,6 +87,7 @@ async function deleteAsset() {
     await loadAllData();
 }
 
+// Saves a new or existing cable canal via POST/PUT
 async function saveCanal() {
     const id = document.getElementById('canal-id').value;
     const body = {
@@ -99,6 +105,7 @@ async function saveCanal() {
     await loadAllData();
 }
 
+// Deletes the selected canal after confirmation
 async function deleteCanal() {
     const id = document.getElementById('canal-id').value;
     if (!id || !confirm('Delete this canal?')) return;
@@ -109,6 +116,7 @@ async function deleteCanal() {
     await loadAllData();
 }
 
+// Saves a new or existing wall via POST/PUT
 async function saveWall() {
     const id = document.getElementById('wall-id').value;
     const body = {
@@ -126,6 +134,7 @@ async function saveWall() {
     await loadAllData();
 }
 
+// Deletes the selected wall after confirmation
 async function deleteWall() {
     const id = document.getElementById('wall-id').value;
     if (!id || !confirm('Delete this wall?')) return;
@@ -136,11 +145,13 @@ async function deleteWall() {
     await loadAllData();
 }
 
+// Fetches the shortest road route between two geographic coordinates
 async function fetchRouteAB(fromLon, fromLat, toLon, toLat) {
     const res = await fetch(`/api/route/route?fromLon=${fromLon}&fromLat=${fromLat}&toLon=${toLon}&toLat=${toLat}`);
     return await res.json();
 }
 
+// Fetches the optimal inspection tour for a list of site IDs via POST
 async function fetchInspectorTour(ids) {
     const res = await fetch('/api/route/inspector-route', {
         method: 'POST',
@@ -150,6 +161,8 @@ async function fetchInspectorTour(ids) {
     return await res.json();
 }
 
+// Loads all map data in parallel (sites, roads, assets, canals, walls, network),
+// then applies filters and refreshes the inspector panel
 async function loadAllData() {
     try {
         const [sitesRes, affectedRes, assetsRes, canalsRes, wallsRes] = await Promise.all([
