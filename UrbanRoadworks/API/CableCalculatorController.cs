@@ -8,7 +8,7 @@ namespace UrbanRoadworks.API;
 [ApiController]
 public class CableCalculatorController(IConfiguration configuration) : ControllerBase
 {
-    private readonly string _conn = configuration.GetConnectionString("DefaultConnection")!;
+    private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
     private static readonly Dictionary<string, double> DrillingRate =
         new(StringComparer.OrdinalIgnoreCase)
@@ -31,7 +31,7 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
 
         if (ids.Length == 0) return BadRequest("No valid canal IDs.");
 
-        await using var conn = new NpgsqlConnection(_conn);
+        await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync();
 
         // 1. Canal length — ordered by user selection

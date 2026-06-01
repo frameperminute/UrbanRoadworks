@@ -175,7 +175,7 @@ async function loadAllData() {
         allSites = await sitesRes.json();
         allAffectedRoads = await affectedRes.json();
         allAssets = await assetsRes.json();
-        allCanals = (await canalsRes.json()).map(c => ({ ...c, canalType: 'cable' }));
+        allCanals = await canalsRes.json();
         allWalls = await wallsRes.json();
 
         const netRes = await fetch('/api/map/roads');
@@ -185,7 +185,7 @@ async function loadAllData() {
         applyFilters();
         populateInspectorPanel();
     } catch (err) {
-        console.error('Errore loading data:', err);
+        console.error('Error loading data:', err);
         document.getElementById('cnt-sites').textContent = 'ERR';
         document.getElementById('cnt-roads').textContent = 'ERR';
         document.getElementById('cnt-assets').textContent = 'ERR';

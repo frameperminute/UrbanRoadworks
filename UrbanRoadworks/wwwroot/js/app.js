@@ -177,8 +177,7 @@ function populateSiteDropdown(selectedId = null) {
     availableSites.forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.id;
-        const statusLabel = { active: 'active', planned: 'planned' };
-        opt.textContent = `${s.name || 'No name'} (${statusLabel[s.status]})`;
+        opt.textContent = `${s.name || 'No name'} (${s.status})`;
         if (selectedId && s.id === parseInt(selectedId)) opt.selected = true;
         select.appendChild(opt);
     });

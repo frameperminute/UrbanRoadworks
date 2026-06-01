@@ -185,18 +185,6 @@ function siteStyle(feature) {
     });
 }
 
-function roadStyle(feature) {
-    const status = feature.get('siteStatus');
-    const colors = {
-        active: { color: '#ff4444', width: 4 },
-        planned: { color: '#fdab43', width: 3 }
-    };
-    const c = colors[status] || { color: '#888', width: 2 };
-    return new ol.style.Style({
-        stroke: new ol.style.Stroke({ color: c.color, width: c.width })
-    });
-}
-
 function assetStyle(feature) {
     const type = feature.get('assetType');
     const colors = {

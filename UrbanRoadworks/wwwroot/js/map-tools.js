@@ -296,7 +296,6 @@ function clearInspectorTour() {
 }
 
 const selectedCanalIds = new Set();
-let cablePlanMode = false;
 
 // Updates the canal selection highlight layer and the selected-count/meters UI
 function refreshCanalSelectionHighlight() {
