@@ -378,6 +378,7 @@ function toggleModifySiteMode() { activateMode('modifySite'); }
 function toggleModifyCanalMode() { activateMode('modifyCanal'); }
 function toggleWallEditMode() { activateMode('editWall'); }
 function toggleModifyWallMode() { activateMode('modifyWall'); }
+function toggleCanalSelectMode() { activateMode('canalSelect'); }
 
 function resetButtons() {
     Object.keys(modes).forEach(k => deactivateMode(k));

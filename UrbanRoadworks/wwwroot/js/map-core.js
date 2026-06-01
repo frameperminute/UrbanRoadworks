@@ -3,10 +3,12 @@ let allAssets = [];
 let allAffectedRoads = [];
 let allCanals = [];
 let allWalls = [];
+
 let drawWall = null;
 let drawSite = null;
 let drawAsset = null;
 let drawCanal = null;
+
 let translateInteraction = null;
 let modifySiteInteraction = null;
 let modifyCanalInteraction = null;
@@ -14,6 +16,46 @@ let modifyWallInteraction = null;
 let dragBoxInteraction = null;
 
 const cableNodesSource = new ol.source.Vector();
+const sitesSource = new ol.source.Vector();
+const assetsSource = new ol.source.Vector();
+const affectedRoadsSource = new ol.source.Vector();
+const networkSource = new ol.source.Vector();
+const canalsSource = new ol.source.Vector();
+const queryHighlightSource = new ol.source.Vector();
+const wallsSource = new ol.source.Vector();
+const routeMarkersSource = new ol.source.Vector();
+let cablePlanHighlightSource = new ol.source.Vector();
+
+const sitesLayer = new ol.layer.Vector({ source: sitesSource, style: siteStyle, zIndex: 1 });
+
+const assetsLayer = new ol.layer.Vector({ source: assetsSource, style: assetStyle, zIndex: 3 });
+
+const cablePlanHighlightLayer = new ol.layer.Vector({
+    source: cablePlanHighlightSource,
+    style: new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#e8af34', width: 6 }) }),
+    zIndex: 9
+});
+
+const routeMarkersLayer = new ol.layer.Vector({
+    source: routeMarkersSource,
+    zIndex: 10,
+    style: function (feature) {
+        const type = feature.get('pointType');
+        return new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 10,
+                fill: new ol.style.Fill({ color: type === 'from' ? '#4f98a3' : '#ff6b6b' }),
+                stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
+            }),
+            text: new ol.style.Text({
+                text: type === 'from' ? 'A' : 'B',
+                fill: new ol.style.Fill({ color: '#fff' }),
+                font: 'bold 11px sans-serif'
+            })
+        });
+    }
+});
+
 const cableNodesLayer = new ol.layer.Vector({
     source: cableNodesSource,
     style: function (feature) {
@@ -34,14 +76,6 @@ const cableNodesLayer = new ol.layer.Vector({
     },
     zIndex: 11
 });
-
-const sitesSource = new ol.source.Vector();
-const assetsSource = new ol.source.Vector();
-const affectedRoadsSource = new ol.source.Vector();
-const networkSource = new ol.source.Vector();
-const canalsSource = new ol.source.Vector();
-const queryHighlightSource = new ol.source.Vector();
-const wallsSource = new ol.source.Vector();
 
 const wallsLayer = new ol.layer.Vector({
     source: wallsSource,
@@ -116,6 +150,20 @@ const networkLayer = new ol.layer.Vector({
     zIndex: 0
 });
 
+const affectedRoadsLayer = new ol.layer.Vector({
+    source: affectedRoadsSource,
+    style: function (feature) {
+        const status = feature.get('siteStatus');
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: status === 'active' ? '#ff4444' : '#fdab43',
+                width: 4,
+                lineDash: [8, 4]
+            })
+        });
+    },
+    zIndex: 4
+});
 function siteStyle(feature) {
     const status = feature.get('status');
     const colors = {
@@ -160,23 +208,6 @@ function assetStyle(feature) {
     });
 }
 
-const sitesLayer = new ol.layer.Vector({ source: sitesSource, style: siteStyle, zIndex: 1 });
-const assetsLayer = new ol.layer.Vector({ source: assetsSource, style: assetStyle, zIndex: 3 });
-const affectedRoadsLayer = new ol.layer.Vector({
-    source: affectedRoadsSource,
-    style: function (feature) {
-        const status = feature.get('siteStatus');
-        return new ol.style.Style({
-            stroke: new ol.style.Stroke({
-                color: status === 'active' ? '#ff4444' : '#fdab43',
-                width: 4,
-                lineDash: [8, 4]
-            })
-        });
-    },
-    zIndex: 4
-});
-
 const map = new ol.Map({
     target: 'map',
     layers: [
@@ -188,6 +219,8 @@ const map = new ol.Map({
         assetsLayer,
         affectedRoadsLayer,
         queryHighlightLayer,
+        routeMarkersLayer,
+        cablePlanHighlightLayer,
         cableNodesLayer
     ],
     view: new ol.View({

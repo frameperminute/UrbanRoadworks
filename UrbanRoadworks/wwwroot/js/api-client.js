@@ -20,36 +20,6 @@ function parseFeatures(items) {
     }).filter(f => f !== null);
 }
 
-async function loadAllData() {
-    try {
-        const [sitesRes, affectedRes, assetsRes, canalsRes, wallsRes] = await Promise.all([
-            fetch('/api/site/sites'),
-            fetch('/api/map/affected-network-roads'),
-            fetch('/api/asset/assets'),
-            fetch('/api/canal/canals'),
-            fetch('/api/wall/walls')
-        ]);
-        allSites = await sitesRes.json();
-        allAffectedRoads = await affectedRes.json();
-        allAssets = await assetsRes.json();
-        allCanals = (await canalsRes.json()).map(c => ({ ...c, canalType: 'cable' }));
-        allWalls = await wallsRes.json();
-
-        const netRes = await fetch('/api/map/roads');
-        const netData = await netRes.json();
-        networkSource.clear();
-        networkSource.addFeatures(parseFeatures(netData));
-        applyFilters();
-        populateInspectorPanel();
-    } catch (err) {
-        console.error('Errore loading data:', err);
-        document.getElementById('cnt-sites').textContent = 'ERR';
-        document.getElementById('cnt-roads').textContent = 'ERR';
-        document.getElementById('cnt-assets').textContent = 'ERR';
-        document.getElementById('cnt-canals').textContent = 'ERR';
-    }
-}
-
 async function saveChanges() {
     const id = document.getElementById('edit-id').value;
     const geometry = document.getElementById('edit-geometry').value;
@@ -164,4 +134,48 @@ async function deleteWall() {
     document.getElementById('overlay').style.display = 'none';
     resetButtons();
     await loadAllData();
+}
+
+async function fetchRouteAB(fromLon, fromLat, toLon, toLat) {
+    const res = await fetch(`/api/route/route?fromLon=${fromLon}&fromLat=${fromLat}&toLon=${toLon}&toLat=${toLat}`);
+    return await res.json();
+}
+
+async function fetchInspectorTour(ids) {
+    const res = await fetch('/api/route/inspector-route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ids)
+    });
+    return await res.json();
+}
+
+async function loadAllData() {
+    try {
+        const [sitesRes, affectedRes, assetsRes, canalsRes, wallsRes] = await Promise.all([
+            fetch('/api/site/sites'),
+            fetch('/api/map/affected-network-roads'),
+            fetch('/api/asset/assets'),
+            fetch('/api/canal/canals'),
+            fetch('/api/wall/walls')
+        ]);
+        allSites = await sitesRes.json();
+        allAffectedRoads = await affectedRes.json();
+        allAssets = await assetsRes.json();
+        allCanals = (await canalsRes.json()).map(c => ({ ...c, canalType: 'cable' }));
+        allWalls = await wallsRes.json();
+
+        const netRes = await fetch('/api/map/roads');
+        const netData = await netRes.json();
+        networkSource.clear();
+        networkSource.addFeatures(parseFeatures(netData));
+        applyFilters();
+        populateInspectorPanel();
+    } catch (err) {
+        console.error('Errore loading data:', err);
+        document.getElementById('cnt-sites').textContent = 'ERR';
+        document.getElementById('cnt-roads').textContent = 'ERR';
+        document.getElementById('cnt-assets').textContent = 'ERR';
+        document.getElementById('cnt-canals').textContent = 'ERR';
+    }
 }

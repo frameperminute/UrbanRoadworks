@@ -149,27 +149,6 @@ function startDrawWall() {
 }
 
 let routeFrom = null, routeTo = null, pickMode = null, routeLayer = null;
-const routeMarkersSource = new ol.source.Vector();
-const routeMarkersLayer = new ol.layer.Vector({
-    source: routeMarkersSource,
-    zIndex: 10,
-    style: function (feature) {
-        const type = feature.get('pointType');
-        return new ol.style.Style({
-            image: new ol.style.Circle({
-                radius: 10,
-                fill: new ol.style.Fill({ color: type === 'from' ? '#4f98a3' : '#ff6b6b' }),
-                stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
-            }),
-            text: new ol.style.Text({
-                text: type === 'from' ? 'A' : 'B',
-                fill: new ol.style.Fill({ color: '#fff' }),
-                font: 'bold 11px sans-serif'
-            })
-        });
-    }
-});
-map.addLayer(routeMarkersLayer);
 
 function startPickPoint(type) {
     resetButtons();
@@ -213,8 +192,7 @@ async function calculateRouteAB() {
     if (!routeFrom || !routeTo) return;
     document.getElementById('btn-route').textContent = '⏳ Computing...';
     try {
-        const res = await fetch(`/api/route/route?fromLon=${routeFrom[0]}&fromLat=${routeFrom[1]}&toLon=${routeTo[0]}&toLat=${routeTo[1]}`);
-        const segments = await res.json();
+        const segments = await fetchRouteAB(routeFrom[0], routeFrom[1], routeTo[0], routeTo[1]);
         if (!segments.length) {
             document.getElementById('route-info').style.display = 'block';
             document.getElementById('route-info').textContent = '⚠️ No route found';
@@ -253,12 +231,7 @@ async function calculateInspectorTour() {
     document.querySelector('[onclick="calculateInspectorTour()"]').textContent = '⏳ Computing...';
 
     try {
-        const res = await fetch('/api/route/inspector-route', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(allIds)
-        });
-        const data = await res.json();
+        const data = await fetchInspectorTour(allIds);
         const segments = data.segments ?? data;
         const orderedSiteIds = data.orderedSiteIds ?? allIds;
 
@@ -311,16 +284,8 @@ function clearInspectorTour() {
     document.getElementById('btn-clear-tour').style.display = 'none';
 }
 
-let selectedCanalIds = new Set();
-let cablePlanHighlightSource = new ol.source.Vector();
-const cablePlanHighlightLayer = new ol.layer.Vector({
-    source: cablePlanHighlightSource,
-    style: new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#e8af34', width: 6 }) }),
-    zIndex: 9
-});
-map.addLayer(cablePlanHighlightLayer);
+const selectedCanalIds = new Set();
 let cablePlanMode = false;
-function toggleCanalSelectMode() { activateMode('canalSelect'); }
 
 function refreshCanalSelectionHighlight() {
     cablePlanHighlightSource.clear();
@@ -380,10 +345,11 @@ function renderCablePlan(plan) {
         wd.innerHTML = '<div style="font-size:0.75rem;color:#888">No walls intersected.</div>';
     } else {
         planWalls.forEach(w => {
+            const crossings = w.crossingCount ?? 1;
             const div = document.createElement('div');
             div.style.cssText = 'background:#0d1b2a;border:1px solid #2a3a5e;border-radius:5px;padding:5px 8px;font-size:0.75rem;color:#ccc';
             const wallName = allWalls.find(ww => ww.id === w.wallId)?.name || w.wallId;
-            div.innerHTML = `Wall ${wallName} <span style="background:#546e7a;color:#fff;border-radius:3px;padding:1px 5px;font-size:0.7rem">${w.material}</span> ${w.thicknessCm} cm <span style="color:#fdab43">${w.drillingTimeMin} min</span>`;
+            div.innerHTML = `Wall ${wallName} <span style="background:#546e7a;color:#fff;border-radius:3px;padding:1px 5px;font-size:0.7rem">${w.material}</span> ${w.thicknessCm * crossings} cm <span style="color:#fdab43">${w.drillingTimeMin} min</span>`;
             wd.appendChild(div);
         });
     }

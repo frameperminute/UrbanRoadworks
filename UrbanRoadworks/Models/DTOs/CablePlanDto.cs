@@ -26,6 +26,7 @@ public class WallIntersectionDto
     public double ThicknessCm { get; set; }
     public string Material { get; set; } = string.Empty;
     public int DrillingTimeMin { get; set; }
+    public int CrossingCount { get; set; }
 }
 
 public class NodePointDto

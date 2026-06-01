@@ -51,7 +51,17 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
 
         // 2. Walls for each canal
         const string wallSql = @"
-            SELECT w.id, COALESCE(w.thickness, 20), COALESCE(w.material, 'default')
+            SELECT
+                w.id,
+                COALESCE(w.thickness, 20),
+                COALESCE(w.material, 'default'),
+                COALESCE(
+                    ST_NumGeometries(
+                        ST_CollectionExtract(
+                            ST_Intersection(w.geometry, c.geometry), 1
+                        )
+                    ), 1
+                ) AS crossing_count
             FROM walls w
             JOIN canals c ON ST_Intersects(w.geometry, c.geometry)
             WHERE c.id = @canalId";
@@ -172,14 +182,16 @@ public class CableCalculatorController(IConfiguration configuration) : Controlle
                 {
                     double thick = r.GetDouble(1);
                     string mat = r.GetString(2);
+                    int crossings = r.GetInt32(3);
                     double rate = DrillingRate.GetValueOrDefault(mat, DrillingRate["default"]);
-                    int drillMin = (int)Math.Ceiling(thick * rate);
+                    int drillMin = (int)Math.Ceiling(thick * rate) * crossings;
                     wallTimeMin += drillMin;
                     walls.Add(new WallIntersectionDto
                     {
                         WallId = r.GetInt32(0),
                         ThicknessCm = thick,
                         Material = mat,
+                        CrossingCount = crossings,
                         DrillingTimeMin = drillMin
                     });
                 }
