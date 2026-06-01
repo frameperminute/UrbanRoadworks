@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Npgsql;
-using UrbanRoadworks.Data;
 
 namespace UrbanRoadworks.API
 {
