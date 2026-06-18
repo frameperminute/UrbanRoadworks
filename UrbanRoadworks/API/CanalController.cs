@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
-using Npgsql;
 using UrbanRoadworks.Data;
 using UrbanRoadworks.Models;
 using UrbanRoadworks.Models.DTOs;
@@ -116,56 +115,5 @@ namespace UrbanRoadworks.API
             return Ok();
         }
 
-        // Debug endpoint: returns all pairs of canals within 0.5 m of each other.
-        // SQL: self-join on canals with ST_DWithin to detect topological connections;
-        //      a.id < b.id avoids returning each pair twice;
-        //      ST_Distance gives the exact geographic distance in metres
-        [HttpGet("topology")]
-        public async Task<IActionResult> GetTopology()
-        {
-            await using var conn = new NpgsqlConnection(_connectionString);
-            await conn.OpenAsync();
-
-            const string sql = @"
-                SELECT
-                    a.id                                            AS canal_a,
-                    b.id                                            AS canal_b,
-                    a.from_site,
-                    a.to_site,
-                    b.from_site                                     AS b_from_site,
-                    b.to_site                                       AS b_to_site,
-                    ROUND(CAST(
-                        ST_Distance(a.geometry::geography, b.geometry::geography) AS numeric
-                    ), 3)                                           AS distance_m
-                FROM canals a
-                JOIN canals b ON a.id < b.id
-                WHERE ST_DWithin(a.geometry::geography, b.geometry::geography, 0.5)
-                ORDER BY distance_m";
-
-            var edges = new List<object>();
-
-            await using var cmd = new NpgsqlCommand(sql, conn);
-            await using var reader = await cmd.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
-            {
-                edges.Add(new
-                {
-                    CanalA = reader.GetInt32(0),
-                    CanalB = reader.GetInt32(1),
-                    FromSiteA = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2),
-                    ToSiteA = reader.IsDBNull(3) ? (int?)null : reader.GetInt32(3),
-                    FromSiteB = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
-                    ToSiteB = reader.IsDBNull(5) ? (int?)null : reader.GetInt32(5),
-                    DistanceM = reader.GetDouble(6)
-                });
-            }
-
-            return Ok(new
-            {
-                TotalConnectedPairs = edges.Count,
-                Edges = edges
-            });
-        }
     }
 }

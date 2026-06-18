@@ -121,8 +121,7 @@ namespace UrbanRoadworks.API
             var sourceNode = (long)(await cmdSource.ExecuteScalarAsync() ?? 0L);
             if (sourceNode == 0) return Ok(Array.Empty<object>());
 
-            // SQL: for each non-completed site, finds the nearest road vertex to its centroid
-            // using CROSS JOIN LATERAL to apply the nearest-neighbour search per row
+            // SQL: Finds the closest road point to the center of every active or planned site.
             await using var cmdSitesAndNodes = new NpgsqlCommand(@"
                 SELECT rs.id, v.id 
                 FROM roadwork_sites rs

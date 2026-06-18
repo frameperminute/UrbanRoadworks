@@ -45,8 +45,8 @@ namespace UrbanRoadworks.API
             }
         }
 
-        // Returns only the road segments that intersect active or planned construction sites,
-        // clipped to the intersection area, with the site status attached.
+        // Returns only the road segments that intersect active or planned construction sites.
+        // It cuts the geometry to show only the overlapping area.
         [HttpGet("affected-network-roads")]
         public async Task<IActionResult> GetAffectedNetworkRoads()
         {

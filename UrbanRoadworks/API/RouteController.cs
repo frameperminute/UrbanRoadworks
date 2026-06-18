@@ -110,8 +110,8 @@ namespace UrbanRoadworks.API
             }
         }
 
-        // Calculates the optimal inspection tour visiting all selected sites,
-        // using a nearest-neighbour greedy heuristic starting from the chosen site.
+        // Calculates the optimal inspection tour visiting all selected sites.
+        // It starts from the first site and always goes to the closest next site.
         [HttpPost("inspector-route")]
         public async Task<IActionResult> InspectorRoute([FromBody] List<int> siteIds)
         {
